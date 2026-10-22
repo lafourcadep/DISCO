@@ -9,6 +9,11 @@
 
 Files are written in the current directory. The sample has 2 · Nx · Ny · Nz atoms.
 
+!!! note "Origin"
+    Input coordinates (loop centres, and the generators' JSON sidecars) use the **box centre** as origin.
+    Output positions use a **box corner** as origin: they are shifted by half the box,
+    (Nx, Ny, Nz) · a0 / 2. Add that shift to compare a sidecar position with a DXA result.
+
 ## Extended XYZ
 
 Extended XYZ with a `Lattice="..."` header holding the 9 components of the box matrix, listed

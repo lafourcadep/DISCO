@@ -11,6 +11,7 @@ Examples/generators/
   make_quadrupole.py                   4 loops on two {110} planes: junction | annihilation
   make_prismatic_dipole.py             rhombic prismatic dipole from 4 shear loops
   make_hexagonal_prismatic_dipole.py   hexagonal prismatic dipole from 6 shear loops
+  make_prismatic_dipoles.py            N prismatic dipoles (rhombic or hexagonal) at random positions
 ```
 
 ## Conventions
@@ -98,6 +99,43 @@ python3 make_hexagonal_prismatic_dipole.py --side 25 --separation 100 --b 1 1 1 
 </figure>
 </div>
 
+### `make_prismatic_dipoles.py`: N dipoles at random positions
+
+Writes `--count N` prismatic dipoles into one input file. Each is built exactly as by the scripts
+above, then drawn at random (`--seed`):
+
+- **b:** one of the eight ½⟨111⟩, so both the direction and which end loop is positive vary.
+  `--b` fixes the direction for every dipole, and `--no-random-sign` also fixes the sign.
+- **Planes (rhombic):** one of the three {110} pairs that contain b.
+- **Separation:** `--separation S` for all dipoles, or `--separation MIN MAX` for a uniform random
+  value per dipole, adjusted to the loopon grid.
+- **Position:** a random lattice vector (whole a0 on each axis), so every face plane stays on its
+  mid-plane. A dipole is redrawn when its bounding sphere comes closer than `--gap` (10 Å) to that
+  of another dipole, using the periodic minimum image.
+
+**One type per sample.** The loopon step that makes the screw sides cancel exactly is set by the
+side length: the half-side must be (k + ½) `Loopon_size`, with the faces on mid-planes. No common
+step exists for a rhombic and a hexagonal dipole, whose half-sides are odd multiples of d/√3 and
+of d/(2√3) respectively (d = {110} spacing). So all dipoles of a sample share `--type` and
+`--side`, and only the separation varies.
+
+**Box.** `--cells` sets it. By default it is the cube in which the dipoles' bounding spheres (with
+half the gap) fill `--fill` = 15 % of the volume.
+
+```bash
+python3 make_prismatic_dipoles.py --count 10                       # 10 hexagonal dipoles, random b
+python3 make_prismatic_dipoles.py --count 20 --type rhombic --side 40 --separation 60 120 --seed 3
+python3 make_prismatic_dipoles.py --count 8 --b 1 1 1 --cells 120 --format lammps
+```
+
+The sidecar's `expected` holds `closed_loops` = 2N, `screw_length` = 0, and `per_dipole[]`: shear-loop
+numbers, b, centre, planes, side, separation and the centres of the two prismatic loops.
+
+!!! check "Verified"
+    Three hexagonal dipoles (side 25.6 Å, random b and separation) were run through `exec_cuda`
+    and analysed with OVITO DXA. DXA finds exactly 6 closed ½⟨111⟩ loops, two per dipole with
+    ±b along that dipole's Burgers vector, at the predicted positions.
+
 ## Sidecar (`<name>.json`)
 
 - `generator`, `command`: the exact command line that wrote the file.
@@ -121,3 +159,5 @@ python3 make_hexagonal_prismatic_dipole.py --side 25 --separation 100 --b 1 1 1 
       Burgers vectors and corner reactions (global loop numbers), plus `frank_favourable_corners`.
     - Prismatic dipole: two closed loops of opposite sign, normal ∥ b, with no screw part, plus their
       side length and position along b.
+    - Several prismatic dipoles: 2N closed loops and `per_dipole[]`.
+- Coordinates are those of the input file: origin at the box centre (see [Output files](output.md)).
