@@ -1,0 +1,29 @@
+general:
+  a0: 3.3024
+  Nx: 40
+  Ny: 40
+  Nz: 40
+  Loopon_size: 1.98144
+  Output_format: both
+
+dislocations:
+  - Shape: circular
+    Radius: 39.6288
+    Center: [-26.4192, -26.4192, 0]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 39.6288
+    Center: [26.4192, 26.4192, 0]
+    m: [-1, 1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 39.6288
+    Center: [26.4192, -26.4192, 0]
+    m: [1, 1, -1]
+    n: [0, 1, 1]
+  - Shape: circular
+    Radius: 39.6288
+    Center: [-26.4192, 26.4192, 0]
+    m: [-1, -1, 1]
+    n: [0, 1, 1]

@@ -1,0 +1,90 @@
+[project]
+site_name = "DISCO"
+site_description = "DISlocation COnfiguration generator: atomistic BCC samples with dislocation loops (Kroupa field, GPU/CPU)"
+site_author = "Paul Lafourcade"
+site_url = "https://lafourcadep.github.io/DISCO/"
+repo_url = "https://github.com/lafourcadep/DISCO"
+repo_name = "lafourcadep/DISCO"
+copyright = "Copyright &copy; 2026 Paul Lafourcade — MIT License"
+nav = [
+  { "Home" = "index.md" },
+  { "Installation" = "installation.md" },
+  { "Usage" = [
+    { "Input file" = "input.md" },
+    { "Output files" = "output.md" },
+    { "CPU or GPU" = "backends.md" },
+  ] },
+  { "Input generators" = [
+    { "Generators" = "generators.md" },
+    { "Quadrupoles" = "quadrupoles.md" },
+  ] },
+  { "Theory" = "theory.md" },
+  { "MD workflow" = "md_workflow.md" },
+]
+extra_javascript = [
+  "javascripts/mathjax.js",
+  "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js",
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.code.annotate",
+  "content.code.copy",
+  "content.code.select",
+  "content.footnote.tooltips",
+  "content.tabs.link",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+tables = {}
+toc.permalink = true
+pymdownx.arithmatex.generic = true
+pymdownx.betterem = {}
+pymdownx.details = {}
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.line_spans = "__span"
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.magiclink = {}
+pymdownx.smartsymbols = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+pymdownx.tabbed.combine_header_slug = true

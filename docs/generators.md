@@ -1,0 +1,120 @@
+# Input generators
+
+The scripts in `Examples/generators/` write DISCO YAML inputs. Each generated `<name>.yaml` comes with a
+**ground-truth sidecar** `<name>.json` that records what the sample should contain. Compare it with
+the output of a dislocation analysis (DXA, DANCE, …) to validate that analysis.
+
+```
+Examples/generators/
+  exec_input.py                        shared helpers (no command line)
+  make_single_loop.py                  one glissile loop: circular / square / rectangular / ⟨111⟩ parallelogram
+  make_quadrupole.py                   4 loops on two {110} planes: junction | annihilation
+  make_prismatic_dipole.py             rhombic prismatic dipole from 4 shear loops
+  make_hexagonal_prismatic_dipole.py   hexagonal prismatic dipole from 6 shear loops
+```
+
+## Conventions
+
+- Python 3 with numpy. The scripts can be run from any directory; `--help` lists every option.
+- **Slip systems** are read from `Parameters/BCC.txt` (`--bcc` to use another file).
+  `--system N` is the position 1..48 in that file: 12 systems per ½⟨111⟩ Burgers vector, each
+  listing 3 {110}, 3 {112} and 6 {123} planes. The same file and numbering are used by the DANCE
+  analysis code, so `expected_slip_system` in the sidecar can be compared directly with what DANCE reports.
+- **Lengths** are in Å, as in the input file. `--units a0` switches every length option to units of a0.
+- b = (a0/2) m. Rectangles have their sides along m (screw, `Half_m`) and along p = m × n (edge, `Half_p`).
+- DISCO moves every loop centre along n onto the nearest mid-plane between atomic planes
+  (see [Input file](input.md#loop-centre-and-cut-plane)). The scripts reproduce that rule in Python.
+  The quadrupole and prismatic scripts put their planes on mid-planes directly, so nothing moves.
+- **Box:** by default, the smallest even cube that leaves 12 a0 between the loops and the box faces
+  (`--cells` to override).
+- **Output format:** `xyz` by default (`--format lammps|both|none`).
+
+## `make_single_loop.py`: one glissile loop
+
+```bash
+python3 make_single_loop.py --system 1                          # circle R = 8 a0 on BCC.txt system 1
+python3 make_single_loop.py --shape square --system 4           # {112}
+python3 make_single_loop.py --shape rectangular --system 7 --corner-radius 13.2
+python3 make_single_loop.py --family all --outdir db/           # all 48 systems
+python3 make_single_loop.py --family 123 --units a0 --radius 10 --outdir db/
+python3 make_single_loop.py --m 1 -1 1 --n 1 1 0 -o my_loop.yaml
+```
+
+The default sizes are:
+
+- circle: R = 8 a0;
+- square: half-side 8 a0;
+- rectangle: `Half_m` = 16 a0, `Half_p` = 8 a0.
+
+The default loopon step is 0.4 a0. Files are named like `circ_f112_sys04.yaml`
+(`rect_rounded_…` when `--corner-radius` > 0).
+
+**⟨111⟩ parallelogram.** `--shape parallelogram` writes `Shape: parallelogram` with `Dir_1` = b
+and `Dir_2` = the other ⟨111⟩ of the plane. This gives two screw sides and two mixed sides at 70.5° to b,
+the faceted shape of a low-temperature BCC loop. A {110} plane holds exactly two ⟨111⟩
+directions, so this shape exists on {110} only (`--family 112/123` is refused). The sizes are
+`--half-screw` (default 16 a0) and `--half-mixed` (8 a0).
+
+```bash
+python3 make_single_loop.py --shape parallelogram --system 1                 # -> para_f110_sys01.yaml
+python3 make_single_loop.py --shape parallelogram --family 110 --outdir db/  # the 12 {110} systems
+```
+
+## `make_quadrupole.py`: junction and annihilation quadrupoles
+
+See [Quadrupoles](quadrupoles.md#make_quadrupolepy-any-pair-of-110-planes).
+
+## Prismatic dipoles
+
+`make_prismatic_dipole.py` and `make_hexagonal_prismatic_dipole.py` build a prismatic dipole from
+shear loops:
+
+- Shear loops with the same b sit on the faces of a glide prism around b: two {110} planes
+  (rhombic tube) or three (hexagonal tube).
+- Every face normal points out of the tube. The screw sides of neighbouring faces therefore
+  coincide with opposite line senses and cancel.
+- What remains are the edge sides at the two tube ends: two prismatic loops of opposite sign,
+  normal to b, separated by `--separation` along b.
+- Exact cancellation needs the shared sides to coincide. The face planes are put on mid-planes, and
+  `Loopon_size` is tuned so that the effective loop extent (k + ½) `Loopon_size` matches the
+  prism half-side and half the separation. The values actually used are printed.
+
+```bash
+python3 make_prismatic_dipole.py                       # ./prismatic_dipole.yaml (+ .json)
+python3 make_prismatic_dipole.py --side 40 --separation 120 --cells 60 -o dipole2.yaml
+python3 make_prismatic_dipole.py --b 1 1 1 --n1 1 -1 0 --n2 0 1 -1
+python3 make_hexagonal_prismatic_dipole.py --side 25 --separation 100 --b 1 1 1 -o hex2.yaml
+```
+
+<div class="grid" markdown>
+<figure markdown="span">
+  ![Rhombic prismatic dipole](assets/prismatic.png){ height="220" }
+  <figcaption>Rhombic prismatic dipole</figcaption>
+</figure>
+<figure markdown="span">
+  ![Hexagonal prismatic dipole](assets/prismatic_hexagonal.png){ height="220" }
+  <figcaption>Hexagonal prismatic dipole</figcaption>
+</figure>
+</div>
+
+## Sidecar (`<name>.json`)
+
+- `generator`, `command`: the exact command line that wrote the file.
+- `general`: the YAML `general:` block.
+- `loops[]`, one entry per loop:
+    - shape and sizes;
+    - `center_requested` and `center_snapped` (after the mid-plane rule);
+    - `m`, `n`, `burgers_A`, `plane_family`;
+    - `expected_burgers_type`, `expected_slip_system` (indices in `BCC.txt`);
+    - `loopons`: the number of loopons DISCO will generate.
+- `expected`: what the sample should contain.
+    - Single loop: one closed ½⟨111⟩ loop, plus the nominal screw and edge lengths for rectangles.
+    - Quadrupole:
+        - for each corner: the loop pair, the product Burgers vector (units of a0),
+          a⟨100⟩ or a⟨110⟩, Frank's rule, and the `BCC.txt` junction type (5/6/7) for a⟨100⟩;
+        - circles: the corner reactions are what relaxation should produce, while the unrelaxed
+          sample holds 4 crossing loops;
+        - squares and rectangles: each corner leg already carries the product Burgers vector
+          (`shared_side: true`).
+    - Prismatic dipole: two closed loops of opposite sign, normal ∥ b, with no screw part, plus their
+      side length and position along b.

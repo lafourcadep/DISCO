@@ -1,0 +1,89 @@
+general:
+  a0: 3.3024
+  Nx: 80
+  Ny: 80
+  Nz: 40
+  Loopon_size: 1.32096
+  Output_format: lammps
+
+dislocations:
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-112.2816, -66.048, 16.512]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-99.072, -26.4192, 16.512]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-72.6528, -79.2576, 16.512]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-59.4432, -39.6288, 16.512]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [52.8384, -89.1648, -16.512]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [66.048, -49.536, -16.512]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [92.4672, -102.3744, -16.512]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [105.6768, -62.7456, -16.512]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-99.072, 46.2336, 26.4192]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-85.8624, 85.8624, 26.4192]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-59.4432, 33.024, 26.4192]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-46.2336, 72.6528, 26.4192]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [33.024, 69.3504, -9.9072]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [46.2336, 108.9792, -9.9072]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [72.6528, 56.1408, -9.9072]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [85.8624, 95.7696, -9.9072]
+    m: [1, -1, 1]
+    n: [1, 1, 0]

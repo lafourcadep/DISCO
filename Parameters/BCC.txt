@@ -1,0 +1,76 @@
+CRYSTAL_STRUCTURE BCC
+
+MATERIAL Tantalum
+LATTICE_PARAMETER 3.3024
+
+STANDARD 48
+TYPES 4
+TYPE 1
+BURGERS 0.5 0.5 0.5
+SLIP_SYSTEMS
+1     -1      0
+1      0     -1
+0      1     -1
+1      1     -2
+1     -2      1
+2     -1     -1
+1      2     -3
+2     -3      1
+3     -1     -2
+3     -2     -1
+2      1     -3
+1     -3      2
+TYPE 2
+BURGERS 0.5 -0.5 0.5
+SLIP_SYSTEMS
+1      1      0
+1      0     -1
+0      1      1
+1     -1     -2
+1      2      1
+2      1     -1
+1     -2     -3
+2      3      1
+3      1     -2
+3      2     -1
+2     -1     -3
+1      3      2
+TYPE 3
+BURGERS 0.5 0.5 -0.5
+SLIP_SYSTEMS
+1     -1      0
+1      0      1
+0      1      1
+1      1      2
+1     -2     -1
+2     -1      1
+1      2      3
+2     -3     -1
+3     -1      2
+3     -2      1
+2      1      3
+1     -3     -2
+TYPE 4
+BURGERS 0.5 -0.5 -0.5
+SLIP_SYSTEMS
+1      1      0
+1      0      1
+0      1     -1
+1     -1      2
+1      2     -1
+2      1      1
+1     -2      3
+2      3     -1
+3      1      2
+3      2      1
+2     -1      3
+1      3     -2
+
+JUNCTION
+TYPES 3
+TYPE 5
+BURGERS 1 0 0
+TYPE 6
+BURGERS 0 1 0
+TYPE 7
+BURGERS 0 0 1

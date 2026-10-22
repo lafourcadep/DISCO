@@ -1,0 +1,26 @@
+# Build products
+Code/exec_cuda
+Code/exec_cpu
+Code/tests/test_loop_deform
+Code/tests/test_snap
+*.o
+
+# Python
+__pycache__/
+*.pyc
+
+# Generated samples and MD output
+Geo_*_with_loop.xyz
+Geo_*_with_loop.lmp
+*.dump
+*.ca
+*.vtk
+dir.dumps/
+log.lammps
+
+# Potentials (not redistributed)
+*.eam.alloy
+
+# Documentation build
+site/
+.cache/

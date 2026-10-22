@@ -1,0 +1,40 @@
+general:
+  a0: 3.3024
+  Nx: 40
+  Ny: 40
+  Nz: 40
+  Loopon_size: 1.98144
+
+dislocations:
+  - Shape: rectangular
+    Half_m: 34.31954752
+    Half_p: 26.4192
+    Corner_radius: 0.33024
+    Center: [0, 0, 0]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: rectangular
+    Half_m: 34.31954752
+    Half_p: 26.4192
+    Corner_radius: 0.33024
+    Center: [19.8144, 39.6288, -19.8144]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: rectangular
+    Half_m: 34.31954752
+    Half_p: 19.8144
+    Corner_radius: 0.33024
+    Center: [19.8144, 9.9072, 9.9072]
+    m: [-1, 1, 1]
+    n: [1, 0, 1]
+  - Shape: rectangular
+    Half_m: 34.31954752
+    Half_p: 19.8144
+    Corner_radius: 0.33024
+    Center: [0, 29.7216, -29.7216]
+    m: [-1, 1, 1]
+    n: [1, 0, 1]
+
+# center loop 2 =  np.cross(m3,n3)                 =  1  2 -1
+# center loop 3 =  np.cross(m1,n1)+np.cross(m3,n3) =  2  1  1
+# center loop 4 = -np.cross(m1,n1)+np.cross(m3,n3) =  0  3 -3

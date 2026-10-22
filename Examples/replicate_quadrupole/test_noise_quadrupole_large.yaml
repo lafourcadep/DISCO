@@ -1,0 +1,1289 @@
+general:
+  a0: 3.3024
+  Nx: 160
+  Ny: 160
+  Nz: 160
+  Loopon_size: 1.32096
+  Output_format: lammps
+
+dislocations:
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-217.9584, -188.2368, -181.632]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-204.7488, -148.608, -181.632]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-178.3296, -201.4464, -181.632]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-165.12, -161.8176, -181.632]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-69.3504, -208.0512, -184.9344]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-56.1408, -168.4224, -184.9344]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-29.7216, -221.2608, -184.9344]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-16.512, -181.632, -184.9344]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [23.1168, -234.4704, -191.5392]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [36.3264, -194.8416, -191.5392]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [62.7456, -247.68, -191.5392]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [75.9552, -208.0512, -191.5392]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [158.5152, -234.4704, -217.9584]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [171.7248, -194.8416, -217.9584]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [198.144, -247.68, -217.9584]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [211.3536, -208.0512, -217.9584]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-204.7488, -69.3504, -181.632]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-191.5392, -29.7216, -181.632]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-165.12, -82.56, -181.632]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-151.9104, -42.9312, -181.632]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-69.3504, -56.1408, -214.656]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-56.1408, -16.512, -214.656]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-29.7216, -69.3504, -214.656]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-16.512, -29.7216, -214.656]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [29.7216, -99.072, -211.3536]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [42.9312, -59.4432, -211.3536]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [69.3504, -112.2816, -211.3536]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [82.56, -72.6528, -211.3536]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [194.8416, -69.3504, -178.3296]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [208.0512, -29.7216, -178.3296]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [234.4704, -82.56, -178.3296]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [247.68, -42.9312, -178.3296]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-224.5632, 69.3504, -178.3296]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-211.3536, 108.9792, -178.3296]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-184.9344, 56.1408, -178.3296]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-171.7248, 95.7696, -178.3296]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-72.6528, 42.9312, -208.0512]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-59.4432, 82.56, -208.0512]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-33.024, 29.7216, -208.0512]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-19.8144, 69.3504, -208.0512]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [19.8144, 29.7216, -184.9344]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [33.024, 69.3504, -184.9344]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [59.4432, 16.512, -184.9344]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [72.6528, 56.1408, -184.9344]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [148.608, 72.6528, -171.7248]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [161.8176, 112.2816, -171.7248]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [188.2368, 59.4432, -171.7248]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [201.4464, 99.072, -171.7248]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-221.2608, 191.5392, -204.7488]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-208.0512, 231.168, -204.7488]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-181.632, 178.3296, -204.7488]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-168.4224, 217.9584, -204.7488]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-92.4672, 191.5392, -175.0272]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-79.2576, 231.168, -175.0272]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-52.8384, 178.3296, -175.0272]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-39.6288, 217.9584, -175.0272]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [49.536, 175.0272, -181.632]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [62.7456, 214.656, -181.632]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [89.1648, 161.8176, -181.632]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [102.3744, 201.4464, -181.632]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [194.8416, 204.7488, -191.5392]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [208.0512, 244.3776, -191.5392]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [234.4704, 191.5392, -191.5392]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [247.68, 231.168, -191.5392]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-201.4464, -214.656, -52.8384]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-188.2368, -175.0272, -52.8384]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-161.8176, -227.8656, -52.8384]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-148.608, -188.2368, -52.8384]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-108.9792, -201.4464, -66.048]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-95.7696, -161.8176, -66.048]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-69.3504, -214.656, -66.048]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-56.1408, -175.0272, -66.048]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [29.7216, -204.7488, -39.6288]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [42.9312, -165.12, -39.6288]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [69.3504, -217.9584, -39.6288]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [82.56, -178.3296, -39.6288]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [155.2128, -204.7488, -85.8624]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [168.4224, -165.12, -85.8624]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [194.8416, -217.9584, -85.8624]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [208.0512, -178.3296, -85.8624]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-211.3536, -56.1408, -59.4432]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-198.144, -16.512, -59.4432]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-171.7248, -69.3504, -59.4432]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-158.5152, -29.7216, -59.4432]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-105.6768, -89.1648, -56.1408]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-92.4672, -49.536, -56.1408]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-66.048, -102.3744, -56.1408]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-52.8384, -62.7456, -56.1408]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [56.1408, -72.6528, -72.6528]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [69.3504, -33.024, -72.6528]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [95.7696, -85.8624, -72.6528]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [108.9792, -46.2336, -72.6528]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [178.3296, -89.1648, -52.8384]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [191.5392, -49.536, -52.8384]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [217.9584, -102.3744, -52.8384]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [231.168, -62.7456, -52.8384]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-204.7488, 75.9552, -75.9552]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-191.5392, 115.584, -75.9552]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-165.12, 62.7456, -75.9552]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-151.9104, 102.3744, -75.9552]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-79.2576, 79.2576, -75.9552]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-66.048, 118.8864, -75.9552]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-39.6288, 66.048, -75.9552]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-26.4192, 105.6768, -75.9552]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [39.6288, 52.8384, -66.048]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [52.8384, 92.4672, -66.048]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [79.2576, 39.6288, -66.048]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [92.4672, 79.2576, -66.048]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [155.2128, 39.6288, -49.536]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [168.4224, 79.2576, -49.536]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [194.8416, 26.4192, -49.536]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [208.0512, 66.048, -49.536]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-217.9584, 204.7488, -79.2576]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-204.7488, 244.3776, -79.2576]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-178.3296, 191.5392, -79.2576]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-165.12, 231.168, -79.2576]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-105.6768, 175.0272, -62.7456]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-92.4672, 214.656, -62.7456]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-66.048, 161.8176, -62.7456]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-52.8384, 201.4464, -62.7456]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [42.9312, 211.3536, -72.6528]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [56.1408, 250.9824, -72.6528]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [82.56, 198.144, -72.6528]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [95.7696, 237.7728, -72.6528]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [158.5152, 175.0272, -79.2576]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [171.7248, 214.656, -79.2576]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [198.144, 161.8176, -79.2576]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [211.3536, 201.4464, -79.2576]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-237.7728, -191.5392, 66.048]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-224.5632, -151.9104, 66.048]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-198.144, -204.7488, 66.048]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-184.9344, -165.12, 66.048]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-92.4672, -184.9344, 52.8384]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-79.2576, -145.3056, 52.8384]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-52.8384, -198.144, 52.8384]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-39.6288, -158.5152, 52.8384]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [52.8384, -224.5632, 52.8384]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [66.048, -184.9344, 52.8384]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [92.4672, -237.7728, 52.8384]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [105.6768, -198.144, 52.8384]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [168.4224, -221.2608, 59.4432]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [181.632, -181.632, 59.4432]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [208.0512, -234.4704, 59.4432]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [221.2608, -194.8416, 59.4432]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-237.7728, -95.7696, 46.2336]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-224.5632, -56.1408, 46.2336]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-198.144, -108.9792, 46.2336]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-184.9344, -69.3504, 46.2336]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-99.072, -89.1648, 59.4432]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-85.8624, -49.536, 59.4432]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-59.4432, -102.3744, 59.4432]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-46.2336, -62.7456, 59.4432]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [49.536, -66.048, 59.4432]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [62.7456, -26.4192, 59.4432]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [89.1648, -79.2576, 59.4432]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [102.3744, -39.6288, 59.4432]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [168.4224, -59.4432, 82.56]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [181.632, -19.8144, 82.56]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [208.0512, -72.6528, 82.56]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [221.2608, -33.024, 82.56]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-217.9584, 49.536, 79.2576]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-204.7488, 89.1648, 79.2576]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-178.3296, 36.3264, 79.2576]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-165.12, 75.9552, 79.2576]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-79.2576, 75.9552, 46.2336]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-66.048, 115.584, 46.2336]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-39.6288, 62.7456, 46.2336]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-26.4192, 102.3744, 46.2336]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [29.7216, 66.048, 66.048]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [42.9312, 105.6768, 66.048]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [69.3504, 52.8384, 66.048]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [82.56, 92.4672, 66.048]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [158.5152, 72.6528, 69.3504]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [171.7248, 112.2816, 69.3504]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [198.144, 59.4432, 69.3504]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [211.3536, 99.072, 69.3504]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-214.656, 204.7488, 82.56]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-201.4464, 244.3776, 82.56]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-175.0272, 191.5392, 82.56]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-161.8176, 231.168, 82.56]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-102.3744, 191.5392, 69.3504]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-89.1648, 231.168, 69.3504]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-62.7456, 178.3296, 69.3504]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-49.536, 217.9584, 69.3504]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [16.512, 188.2368, 56.1408]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [29.7216, 227.8656, 56.1408]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [56.1408, 175.0272, 56.1408]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [69.3504, 214.656, 56.1408]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [184.9344, 194.8416, 49.536]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [198.144, 234.4704, 49.536]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [224.5632, 181.632, 49.536]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [237.7728, 221.2608, 49.536]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-241.0752, -201.4464, 214.656]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-227.8656, -161.8176, 214.656]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-201.4464, -214.656, 214.656]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-188.2368, -175.0272, 214.656]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-72.6528, -214.656, 221.2608]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-59.4432, -175.0272, 221.2608]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-33.024, -227.8656, 221.2608]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-19.8144, -188.2368, 221.2608]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [46.2336, -231.168, 201.4464]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [59.4432, -191.5392, 201.4464]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [85.8624, -244.3776, 201.4464]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [99.072, -204.7488, 201.4464]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [168.4224, -204.7488, 214.656]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [181.632, -165.12, 214.656]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [208.0512, -217.9584, 214.656]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [221.2608, -178.3296, 214.656]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-247.68, -99.072, 188.2368]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-234.4704, -59.4432, 188.2368]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-208.0512, -112.2816, 188.2368]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-194.8416, -72.6528, 188.2368]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-112.2816, -79.2576, 214.656]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-99.072, -39.6288, 214.656]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-72.6528, -92.4672, 214.656]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-59.4432, -52.8384, 214.656]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [39.6288, -66.048, 181.632]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [52.8384, -26.4192, 181.632]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [79.2576, -79.2576, 181.632]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [92.4672, -39.6288, 181.632]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [158.5152, -85.8624, 191.5392]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [171.7248, -46.2336, 191.5392]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [198.144, -99.072, 191.5392]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [211.3536, -59.4432, 191.5392]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-237.7728, 36.3264, 221.2608]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-224.5632, 75.9552, 221.2608]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-198.144, 23.1168, 221.2608]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-184.9344, 62.7456, 221.2608]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-75.9552, 42.9312, 201.4464]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-62.7456, 82.56, 201.4464]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-36.3264, 29.7216, 201.4464]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-23.1168, 69.3504, 201.4464]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [33.024, 49.536, 175.0272]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [46.2336, 89.1648, 175.0272]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [72.6528, 36.3264, 175.0272]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [85.8624, 75.9552, 175.0272]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [181.632, 33.024, 221.2608]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [194.8416, 72.6528, 221.2608]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [221.2608, 19.8144, 221.2608]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [234.4704, 59.4432, 221.2608]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-244.3776, 198.144, 194.8416]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-231.168, 237.7728, 194.8416]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-204.7488, 184.9344, 194.8416]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-191.5392, 224.5632, 194.8416]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-105.6768, 165.12, 181.632]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-92.4672, 204.7488, 181.632]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-66.048, 151.9104, 181.632]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [-52.8384, 191.5392, 181.632]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [26.4192, 165.12, 217.9584]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [39.6288, 204.7488, 217.9584]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [66.048, 151.9104, 217.9584]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [79.2576, 191.5392, 217.9584]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [158.5152, 161.8176, 188.2368]
+    m: [1, -1, -1]
+    n: [1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [171.7248, 201.4464, 188.2368]
+    m: [-1, -1, 1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [198.144, 148.608, 188.2368]
+    m: [-1, -1, -1]
+    n: [-1, 1, 0]
+  - Shape: circular
+    Radius: 26.4192
+    Center: [211.3536, 188.2368, 188.2368]
+    m: [1, -1, 1]
+    n: [1, 1, 0]
