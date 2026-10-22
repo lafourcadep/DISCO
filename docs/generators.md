@@ -104,14 +104,20 @@ python3 make_hexagonal_prismatic_dipole.py --side 25 --separation 100 --b 1 1 1 
 Writes `--count N` prismatic dipoles into one input file. Each is built exactly as by the scripts
 above, then drawn at random (`--seed`):
 
-- **b:** one of the eight ½⟨111⟩, so both the direction and which end loop is positive vary.
-  `--b` fixes the direction for every dipole, and `--no-random-sign` also fixes the sign.
+- **b:** one of the four ⟨111⟩ directions with a random sign, so both the direction and which end
+  loop is positive vary. By default the directions are dealt in shuffled rounds of four, so the
+  families stay balanced (12 dipoles = 3 per family). `--b-draw random` draws each one
+  independently instead. `--b` fixes the direction for every dipole, and `--no-random-sign` also
+  fixes the sign.
 - **Planes (rhombic):** one of the three {110} pairs that contain b.
 - **Separation:** `--separation S` for all dipoles, or `--separation MIN MAX` for a uniform random
   value per dipole, adjusted to the loopon grid.
-- **Position:** a random lattice vector (whole a0 on each axis), so every face plane stays on its
-  mid-plane. A dipole is redrawn when its bounding sphere comes closer than `--gap` (10 Å) to that
-  of another dipole, using the periodic minimum image.
+- **Position:** a random BCC lattice site of the box (cube corner or body centre), so every face
+  plane stays on its mid-plane. A dipole is redrawn when its bounding sphere comes closer than
+  `--gap` (10 Å) to that of another dipole, using the periodic minimum image.
+- **Margin (optional):** with `--margin M`, every shear loop also stays at least M Å from the box
+  faces, so no dipole crosses the periodic boundary. Use it when a free surface will be opened
+  later, for instance for indentation. Without it, dipoles may wrap across the boundary.
 
 **One type per sample.** The loopon step that makes the screw sides cancel exactly is set by the
 side length: the half-side must be (k + ½) `Loopon_size`, with the faces on mid-planes. No common
@@ -119,22 +125,34 @@ step exists for a rhombic and a hexagonal dipole, whose half-sides are odd multi
 of d/(2√3) respectively (d = {110} spacing). So all dipoles of a sample share `--type` and
 `--side`, and only the separation varies.
 
-**Box.** `--cells` sets it. By default it is the cube in which the dipoles' bounding spheres (with
-half the gap) fill `--fill` = 15 % of the volume.
+**Box.** `--cells N` gives a cube and `--cells NX NY NZ` any orthorhombic box, in unit cells.
+`--size LX LY LZ` gives it in Å, rounded to whole cells. Odd cell counts are fine. By default the
+box is the cube in which the dipoles' bounding spheres (with half the gap) fill `--fill` = 15 % of
+the volume, enlarged if needed to fit `--margin`.
 
 ```bash
 python3 make_prismatic_dipoles.py --count 10                       # 10 hexagonal dipoles, random b
 python3 make_prismatic_dipoles.py --count 20 --type rhombic --side 40 --separation 60 120 --seed 3
 python3 make_prismatic_dipoles.py --count 8 --b 1 1 1 --cells 120 --format lammps
+# indentation slab: 12 dipoles (3 per <111> family), none crossing the box faces
+python3 make_prismatic_dipoles.py --count 12 --side 40 --separation 50 --size 600 600 300 --margin 10 --gap 20
 ```
+
+If the dipoles do not fit, the script stops and says how many it placed. Increase the box, or
+lower `--count`, `--fill`, `--gap` or `--margin`. With `--margin`, a dipole's centre must stay
+its full reach plus M away from every face, which shrinks the usable volume quickly in small
+boxes.
 
 The sidecar's `expected` holds `closed_loops` = 2N, `screw_length` = 0, and `per_dipole[]`: shear-loop
 numbers, b, centre, planes, side, separation and the centres of the two prismatic loops.
+`placement` records the cells, gap, margin, seed and b draw.
 
 !!! check "Verified"
     Three hexagonal dipoles (side 25.6 Å, random b and separation) were run through `exec_cuda`
     and analysed with OVITO DXA. DXA finds exactly 6 closed ½⟨111⟩ loops, two per dipole with
-    ±b along that dipole's Burgers vector, at the predicted positions.
+    ±b along that dipole's Burgers vector, at the predicted positions. The same holds in a
+    61 × 51 × 41 box with `--margin 6`, with odd cell counts on every axis, a different count per
+    axis, and no loop crossing the boundary.
 
 ## Sidecar (`<name>.json`)
 
