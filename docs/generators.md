@@ -62,7 +62,8 @@ python3 make_single_loop.py --shape parallelogram --family 110 --outdir db/  # t
 
 ## `make_quadrupole.py`: junction and annihilation quadrupoles
 
-See [Quadrupoles](quadrupoles.md#make_quadrupolepy-any-pair-of-110-planes).
+See [Quadrupoles](quadrupoles.md#make_quadrupolepy-any-pair-of-110-planes), including
+[several quadrupoles in one sample](quadrupoles.md#several-quadrupoles-in-one-sample-tiles).
 
 ## Prismatic dipoles
 
@@ -116,5 +117,7 @@ python3 make_hexagonal_prismatic_dipole.py --side 25 --separation 100 --b 1 1 1 
           sample holds 4 crossing loops;
         - squares and rectangles: each corner leg already carries the product Burgers vector
           (`shared_side: true`).
+    - Tiled quadrupoles (`--tiles`): `tiles[]` with, per tile, its centre, shift, planes, mode,
+      Burgers vectors and corner reactions (global loop numbers), plus `frank_favourable_corners`.
     - Prismatic dipole: two closed loops of opposite sign, normal ∥ b, with no screw part, plus their
       side length and position along b.

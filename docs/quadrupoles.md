@@ -4,7 +4,7 @@ Three scripts write quadrupoles of four loops:
 
 | Script | Use |
 |---|---|
-| `Examples/generators/make_quadrupole.py` | Any pair of {110} planes; circular, square or rectangular loops; the Burgers vectors are searched for junction or annihilation; writes a ground-truth sidecar. |
+| `Examples/generators/make_quadrupole.py` | Any pair of {110} planes; circular, square or rectangular loops; the Burgers vectors are searched for junction or annihilation; writes a ground-truth sidecar. With `--tiles`, many different quadrupoles in one sample. |
 | `Code/generate_quadrupole.py` | Two fixed circular layouts (junction, annihilation) on a pair of {110} planes; standard library only. |
 | `Examples/replicate_quadrupole/replicate_quadrupole.py` | Scales and tiles a reference quadrupole on a grid, with optional random shifts of each tile: large samples. |
 
@@ -73,6 +73,52 @@ python3 make_quadrupole.py --shape rectangular --half-m 60            # 60 Å ha
   ![Junction tube](assets/quad_junction.png){ width="320" }
   <figcaption>Four square loops sharing their sides: ½⟨111⟩ ends (green), a⟨100⟩ junctions (pink).</figcaption>
 </figure>
+
+### Several quadrupoles in one sample (`--tiles`)
+
+`--tiles NX NY NZ` writes NX · NY · NZ quadrupoles into **one** input file, one per cubic tile of
+a regular grid, with a single JSON sidecar.
+
+Unlike [`replicate_quadrupole.py`](#replicate_quadrupolepy-large-tiled-samples), the tiles can differ.
+Each tile takes a (plane pair, mode) combination from a pool:
+
+| Option | Pool |
+|---|---|
+| `--tile-pairs planes` (default) | the `--planes` pair |
+| `--tile-pairs all` | the 15 {110} pairs |
+| `--tile-pairs perpendicular` | the 3 pairs at 90° (L = ⟨100⟩, square cross-section) |
+| `--tile-pairs oblique` | the 12 pairs at 60° (L = ⟨111⟩, rhombic cross-section) |
+| `--mode junction` / `annihilation` / `mixed` | one mode, or both (`mixed`, tiled mode only) |
+
+- `--order cycle` (default) gives the combinations to the tiles in turn, each with the preferred
+  Burgers assignment. The sample is deterministic.
+- `--order random` draws a combination **and** one of its valid Burgers assignments for each tile.
+  `--seed` makes the draw reproducible.
+- `--noise A` shifts each tile rigidly by a random vector: gaussian with standard deviation A,
+  cut at 2A, or uniform in ±A (`--noise-type`), on the axes in `--noise-axes`. Every component is
+  rounded to a whole a0. Since that is a lattice translation, every loop plane stays on its
+  mid-plane and nothing is moved by DISCO.
+- `--tile-cells T` sets the tile edge. It must be **even**, so that the tile centres are lattice
+  vectors too. The default is the smallest even cube that holds every tile's quadrupole with a
+  12 a0 margin, enlarged by the largest possible shift. Every loop must stay at least 2 a0 inside
+  its tile, so loops of two tiles never touch. The box is (T · NX) × (T · NY) × (T · NZ) cells.
+- Square and rectangular tubes tune `Loopon_size` to their face width, and a sample has a single
+  `Loopon_size`. Their tiles must therefore all have the same plane angle: use
+  `--tile-pairs perpendicular` or `oblique`. Mixing angles is refused. Circles have no such limit.
+- The crossing (circles) or shared-side (tubes) checks of a single quadrupole are run on every tile.
+
+```bash
+python3 make_quadrupole.py --tiles 2 2 1                               # 4 identical junction quadrupoles
+python3 make_quadrupole.py --tiles 3 3 3 --tile-pairs all --mode mixed \
+    --order random --seed 1 --noise 5                                  # 27 random quadrupoles, 108 loops
+python3 make_quadrupole.py --tiles 2 2 2 --shape square \
+    --tile-pairs perpendicular --mode mixed                            # 8 tubes, junction and annihilation
+```
+
+The YAML header lists every tile: its loops, planes, prism axis and Burgers vectors. The
+sidecar's `expected.tiles[]` gives the same per tile, plus its centre and shift and the four corner
+reactions, with loops numbered across the whole file (tile t holds loops 4t − 3 … 4t).
+`expected.frank_favourable_corners` counts the a⟨100⟩ junction corners of the sample.
 
 ## `generate_quadrupole.py`: fixed circular layouts
 

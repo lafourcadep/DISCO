@@ -21,8 +21,8 @@ The sum runs on a GPU (CUDA) or on the cores of a CPU (OpenMP); both backends gi
 - Loop centres are moved onto the mid-plane between two atomic planes of the loop plane family.
 - Output as extended XYZ (OVITO) or LAMMPS data file.
 - Python generators for common configurations: single loops on all 48 BCC slip systems,
-  junction and annihilation quadrupoles, prismatic dipoles, and large tiled samples with
-  random positions. Each generated input comes with a JSON file holding the expected
+  junction and annihilation quadrupoles (one, or many different ones in one sample),
+  prismatic dipoles, and large tiled samples with random positions. Each generated input comes with a JSON file holding the expected
   dislocation content.
 
 | | | | |
