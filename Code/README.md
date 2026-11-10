@@ -15,5 +15,6 @@ Sources of `exec_cuda` (GPU + CPU) and `exec_cpu` (CPU only).
 | `generate_quadrupole.py` | Quadrupole input generator |
 | `analysis_dxa.py` | OVITO DXA on LAMMPS dumps (`.ca` / `.vtk` output) |
 
-Build: `make exec_cpu`, `make GPU_ARCH=sm_XX`, `make test`.
+Build: `make exec_cpu`, `make GPU_ARCH=sm_XX`, `make exec_mvcc` (Apple GPU through mvcc), `make test`.
+Options: `--cpu`, `--fp32` (GPU, single precision), `--gpu-chunk <pairs>` (GPU launch size).
 Full documentation: <https://lafourcadep.github.io/DISCO/> (sources in `../docs/`).

@@ -1,6 +1,7 @@
 # Build products
 Code/exec_cuda
 Code/exec_cpu
+Code/exec_mvcc
 Code/tests/test_loop_deform
 Code/tests/test_snap
 *.o

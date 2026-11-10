@@ -17,6 +17,7 @@
 #include <vector>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
 #include <iomanip>
 #include <algorithm>
 #include <chrono>
@@ -150,15 +151,30 @@ static void writeLAMMPS(
 // =============================================================================
 int main(int argc, char** argv)
 {
-    // ---- Arguments: [--cpu] <parameters_file> ----
+    // ---- Arguments: [--cpu] [--fp32] [--gpu-chunk <pairs>] <parameters_file> ----
     bool forceCPU = false;
+    GpuOptions gpuOpt;
     const char* paramFile = nullptr;
+    bool badArgs = false;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--cpu") == 0) forceCPU = true;
+        else if (strcmp(argv[i], "--fp32") == 0) gpuOpt.fp32 = true;
+        else if (strcmp(argv[i], "--gpu-chunk") == 0 && i + 1 < argc) {
+            char* end = nullptr;
+            gpuOpt.chunkPairs = strtod(argv[++i], &end);
+            if (*end != '\0' || gpuOpt.chunkPairs < 0.) badArgs = true;
+        }
+        else if (argv[i][0] == '-' && argv[i][1] == '-') badArgs = true;
         else if (!paramFile) paramFile = argv[i];
+        else badArgs = true;
     }
-    if (!paramFile) {
-        cerr << "Usage: " << argv[0] << " [--cpu] <parameters_file>\n";
+    if (!paramFile || badArgs) {
+        cerr << "Usage: " << argv[0] << " [--cpu] [--fp32] [--gpu-chunk <pairs>] <parameters_file>\n"
+             << "  --cpu               OpenMP backend even if a GPU is present\n"
+             << "  --fp32              GPU only: single-precision pair term (fp64 sums)\n"
+             << "  --gpu-chunk <pairs> GPU only: atom-loopon pairs per kernel launch, the host\n"
+             << "                      waiting after each (0 = off; default: automatic,\n"
+             << "                      on for Apple GPUs through mvcc)\n";
         return 1;
     }
 
@@ -190,6 +206,8 @@ int main(int argc, char** argv)
 #endif
     } else {
         cout << "\n--- CPU: " << cpuThreads() << " OpenMP threads (set OMP_NUM_THREADS) ---\n\n";
+        if (gpuOpt.fp32 || gpuOpt.chunkPairs >= 0.)
+            cerr << "WARNING: --fp32 and --gpu-chunk apply to the GPU backend only; ignored\n";
     }
 
     // ---- Read parameters ----
@@ -396,9 +414,9 @@ int main(int argc, char** argv)
     BackendTiming bt;
     if (useGPU) {
 #ifdef WITH_CUDA
-        kroupaGPU(atoms, loopData, dx, dy, dz, bt);
+        kroupaGPU(atoms, loopData, dx, dy, dz, gpuOpt, bt);
         timing.push_back({"Alloc + upload atoms (CPU->GPU)", bt.upload});
-        timing.push_back({"Kroupa kernels (GPU)", bt.kernels});
+        timing.push_back({gpuOpt.fp32 ? "Kroupa kernels (GPU, fp32)" : "Kroupa kernels (GPU)", bt.kernels});
         timing.push_back({"Download displacements (GPU->CPU)", bt.download});
 #endif
     } else {

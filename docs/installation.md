@@ -7,6 +7,7 @@
 | C++14 compiler with OpenMP (g++) | both executables |
 | [yaml-cpp](https://github.com/jbeder/yaml-cpp) | input parser, both executables |
 | CUDA toolkit (`nvcc`) | `exec_cuda` only |
+| [mvcc](https://github.com/doximity/mvcc) toolkit, Homebrew `libomp` | `exec_mvcc` only (macOS, Apple silicon) |
 | Python 3 + numpy | the input generators in `Examples/generators/` |
 
 ## Build
@@ -17,6 +18,7 @@ All build commands run in `Code/`:
 make            # ./exec_cuda: GPU build (needs nvcc; set GPU_ARCH, see below)
 make exec_cpu   # ./exec_cpu: CPU-only build (g++ with OpenMP, no CUDA toolkit)
 make all        # both
+make exec_mvcc  # ./exec_mvcc: Apple-silicon GPU build through mvcc (see below)
 make test       # builds and runs the unit tests (CPU only, no GPU needed)
 make clean
 ```
@@ -54,6 +56,21 @@ Set `GPU_ARCH` to match the GPU, e.g. `make GPU_ARCH=sm_90`:
 | RTX PRO Blackwell | `sm_120` (Makefile default) |
 
 `nvcc --list-gpu-arch` lists every option your toolkit supports.
+
+### Apple silicon GPU (mvcc)
+
+[mvcc](https://github.com/doximity/mvcc) compiles CUDA for Apple GPUs (Metal), so `exec_mvcc` is
+built from the same `backend_cuda.cu`. Build mvcc's toolkit (`tools/install_toolkit.sh` in its
+repository), then:
+
+```bash
+make exec_mvcc MVCC_NVCC=/path/to/mvcc/toolkit/bin/nvcc   # or put toolkit/bin first in PATH
+./exec_mvcc --fp32 ../Examples/quadrupole_circle.yaml
+```
+
+Apple GPUs have no fp64 hardware: without `--fp32` the kernels run in emulated double precision,
+far slower than `exec_cpu`. Long kernels are split automatically into launches of a few seconds
+(see [CPU or GPU](backends.md#command-line-options)). Tested with mvcc 1.1.1 on an M4 Pro.
 
 ## Unit tests
 

@@ -39,9 +39,19 @@ void kroupaCPU(const AtomArrays& atoms, const std::vector<LoopData>& loops,
                double dx, double dy, double dz, BackendTiming& t);
 
 // ---- GPU (CUDA) ----
+// fp32       : single-precision kernel (pair term in float, coordinates taken
+//              relative to the loop centre, per-image partial sums added in double)
+// chunkPairs : atom-loopon pairs (each with its 27 images) per kernel launch; the
+//              host waits after each launch. < 0: automatic (on for Apple GPUs run
+//              through mvcc, whose runtime aborts a GPU wait longer than 8 s; off
+//              otherwise), 0: off (one launch per loop or tile)
+struct GpuOptions {
+    bool   fp32       = false;
+    double chunkPairs = -1.;
+};
 #ifdef WITH_CUDA
 bool gpuAvailable();                 // a CUDA device can be used
 void printGpuInfo();                 // "--- GPU: <name> ---" banner
 void kroupaGPU(const AtomArrays& atoms, const std::vector<LoopData>& loops,
-               double dx, double dy, double dz, BackendTiming& t);
+               double dx, double dy, double dz, const GpuOptions& opt, BackendTiming& t);
 #endif

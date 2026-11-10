@@ -5,6 +5,10 @@
 #                                 machine without GPU uses the OpenMP backend
 #   make exec_cpu   -> exec_cpu   CPU-only build (g++ + OpenMP, no CUDA toolkit)
 #   make all        -> both
+#   make exec_mvcc  -> exec_mvcc  Apple-silicon GPU build through mvcc (CUDA on Metal,
+#                                 https://github.com/doximity/mvcc): put mvcc's toolkit/bin
+#                                 first in PATH, or make exec_mvcc MVCC_NVCC=/path/to/toolkit/bin/nvcc.
+#                                 Apple GPUs emulate fp64: run it with --fp32.
 #
 # Adjust GPU_ARCH to match your hardware (make GPU_ARCH=sm_80):
 #   sm_61  — GTX 1080 / 1070 (Pascal)
@@ -72,10 +76,20 @@ exec_cuda: $(SRC_HOST) backend_cuda.cu $(HEADERS)
 exec_cpu: $(SRC_HOST) $(HEADERS)
 	$(CXX) $(CXX_FLAGS) $(INCLUDES) $(YAML_CFLAGS) $(SRC_HOST) -o $@ $(YAML_LIBS)
 
+# mvcc (macOS, Apple silicon): host code is compiled by Apple clang, so OpenMP
+# comes from Homebrew libomp (-Xpreprocessor -fopenmp)
+MVCC_NVCC  ?= nvcc
+OMP_PREFIX ?= $(shell brew --prefix libomp 2>/dev/null)
+MVCC_FLAGS  = -O3 -std=c++14 -DWITH_CUDA -Xcompiler -Xpreprocessor,-fopenmp,-I$(OMP_PREFIX)/include,-O3
+
+exec_mvcc: $(SRC_HOST) backend_cuda.cu $(HEADERS)
+	$(MVCC_NVCC) $(MVCC_FLAGS) $(INCLUDES) $(YAML_CFLAGS) $(SRC_HOST) backend_cuda.cu -o $@ \
+	  $(YAML_NVLIBS) -L$(OMP_PREFIX)/lib -lomp
+
 all: exec_cuda exec_cpu
 
 clean:
-	rm -f *.o *~ exec_cuda exec_cpu
+	rm -f *.o *~ exec_cuda exec_cpu exec_mvcc
 
 run: exec_cuda
 	./exec_cuda ../Examples/quadrupole_circle.yaml
