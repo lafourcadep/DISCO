@@ -22,8 +22,9 @@ Per loop:
           type with the same b direction, if their glide prisms overlap (lateral distance
           perpendicular to b < 2 R + --gap): such a pair would meet by glide and annihilate.
 
-Loopon_size defaults to 0.33 d (d: atomic-plane spacing of the habit plane), the largest step
-for which the planes next to the cut of an interstitial loop are smooth.
+The file uses Method: line (exact field, no loopon limit). Loopon_size, written for a switch to
+Method: loopons, defaults to 0.33 d (d: atomic-plane spacing of the habit plane), the largest
+step for which the planes next to the cut of an interstitial loop are then smooth.
 
 Usage:
   python3 make_prismatic_loops.py                                   # 1 interstitial loop, R = 20 A

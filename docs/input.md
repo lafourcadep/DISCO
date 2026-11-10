@@ -6,6 +6,7 @@
 ./exec_cuda <input.yaml>          # GPU
 ./exec_cuda --cpu <input.yaml>    # CPU backend of the same binary
 OMP_NUM_THREADS=16 ./exec_cpu <input.yaml>
+./exec_mvcc --fp32 <input.yaml>   # Apple GPU (see CPU or GPU)
 ```
 
 `exec_cuda` falls back to the CPU backend, with a warning, when it finds no usable CUDA device.
@@ -14,7 +15,8 @@ The first lines of the log name the backend (`--- GPU: <name> ---` or
 
 At the end the program prints a timing summary. It gives the wall-clock time and the share of each phase
 (input, lattice, loopons, transfers, kernels, final positions, output), then the kernel time
-per loop and its throughput in atom–loopon pairs per second. The per-loop lines appear only when
+per loop and its throughput in atom–segment (`Method: line`) or atom–loopon (`Method: loopons`)
+pairs per second. The per-loop lines appear only when
 there are 20 loops or fewer.
 
 ## Format
@@ -32,7 +34,10 @@ general:
   Nx: <cells_x>                          # box = Nx × Ny × Nz cubic cells
   Ny: <cells_y>
   Nz: <cells_z>
-  Loopon_size: <step>                    # Å, loopon grid step, the same for every loop
+  Method: <line|loopons>                 # optional, default line (see "Field method")
+  Segment_tolerance: <eps>               # line only, optional, default 0.01 Å
+  Loopon_size: <step>                    # Å, loopon grid step, the same for every loop;
+                                         #   required with loopons, optional (unused) with line
   Output_format: <xyz|lammps|both|none>  # optional, default xyz; none = no file (timing runs)
 
 dislocations:
@@ -64,6 +69,28 @@ dislocations:
 
 The Burgers vector is **b** = (a0/2) **m**, so |b| = a0 |m| / 2. The log prints the size of each loop
 in Å and in units of |b|.
+
+## Field method
+
+The displacement field of each loop is computed in one of two ways
+(see [Theory](theory.md#line-integral-method-line)).
+
+| `Method` | Field | Resolution parameter |
+|---|---|---|
+| `line` (default) | Closed-form line integral: exact isotropic field of the contour, made of straight segments | `Segment_tolerance` ε: circles and rounded corners are cut into chords of sagitta ≤ ε |
+| `loopons` | Kroupa sum over a grid of infinitesimal loops tiling the cut | `Loopon_size`: grid step |
+
+- Straight sides (rectangles, parallelograms, polygons) are exact with `line`. With
+  ε = 0.01 Å a circle of radius 30 Å becomes 115–135 chords and a hexagon with rounded corners
+  about 50 segments. A circle's chords keep its area; a rounded corner loses at most ~ε × arc length.
+- `loopons` approximates the contour by the grid. The error falls with `Loopon_size` (for example,
+  rms 9 × 10⁻³ Å at 0.4 a0 and 2.6 × 10⁻⁴ Å at 0.05 a0 on a glide quadrupole, compared with
+  `line`), and the field is least accurate at the dislocation cores.
+- Cost: an atom–segment pair costs about ten atom–loopon pairs, but a loop has far fewer segments
+  than loopons (48 against 23 579 for a rounded hexagon of circumradius 30 Å at `Loopon_size`
+  0.31 Å). See [CPU or GPU](backends.md#speed).
+- `line` became the default after validation. Inputs written before it, with only `Loopon_size`,
+  now run with `line`; add `Method: loopons` to reproduce older samples exactly.
 
 ## Loop shapes
 
@@ -135,8 +162,9 @@ The box is not deformed. The volume change ±A |b · n̂| is printed, so relax t
 
 - The slab is bounded by mid-planes on either side of the cut. It holds 3 {111} planes for
   ½⟨111⟩ on (111), 1 {110} plane for ½⟨111⟩ on {110}, and 2 {100} planes for a⟨100⟩ on (100).
-- For an interstitial loop, the atoms kept next to the cut are only d/2 from the loopon plane.
-  Use `Loopon_size` ≤ 0.35 d, for example 0.33 Å for {111}. The code warns otherwise.
+- With `Method: loopons`, the atoms kept next to the cut of an interstitial loop are only d/2 from
+  the loopon plane. Use `Loopon_size` ≤ 0.35 d, for example 0.33 Å for {111}; the code warns
+  otherwise. `Method: line` has no such limit: its jump across the cut is exactly −b.
 - For m ∥ n, the in-plane grid axes are n × e_k (e_k is the Cartesian axis with the smallest |n_k|)
   and that vector × n. `Half_m` of a rectangle is measured along the first one, and the first vertex
   of a regular polygon without `Vertex_dir` lies along it.
@@ -170,7 +198,7 @@ general:
   Nx: 60
   Ny: 60
   Nz: 60
-  Loopon_size: 1.32096
+  Method: line
   Output_format: lammps
 
 dislocations:
@@ -197,7 +225,7 @@ The [generators](generators.md) write such files for you.
 | Quantity | Unit |
 |---|---|
 | Lattice parameter `a0` | Å |
-| Atom and loopon positions, all input lengths | Å |
+| Atom and loopon positions, all input lengths (including `Segment_tolerance`) | Å |
 | Burgers vector b | Å |
 | Loop-plane normal n | dimensionless (normalised internally) |
 | Loopon area dS | Å² |

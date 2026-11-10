@@ -16,6 +16,8 @@ Examples/generators/
 
 ## Conventions
 
+- Every generator writes `Method: line` and keeps a `Loopon_size`, so that changing the file to
+  `Method: loopons` gives the grid the generator was designed for.
 - Python 3 with numpy. The scripts can be run from any directory; `--help` lists every option.
 - **Slip systems** are read from `Parameters/BCC.txt` (`--bcc` to use another file).
   `--system N` is the position 1..48 in that file: 12 systems per ½⟨111⟩ Burgers vector, each
@@ -79,7 +81,7 @@ Use this for prismatic loops that must survive thermal MD. Each loop has b out o
 - `--shape circular | hexagonal`. `--radius` is the radius, or the hexagon circumradius.
   `--corner-radius` rounds the hexagon corners. `--vertex-dir` sets the direction of the first
   vertex, which must lie in the plane of every loop, so give `--b` with it.
-- `Loopon_size` defaults to 0.33 d.
+- `Loopon_size` defaults to 0.33 d. It matters only if you switch the file to `Method: loopons`.
 
 ```bash
 python3 make_prismatic_loops.py                                     # 1 interstitial loop, R = 20 Å
@@ -107,8 +109,10 @@ shear loops:
 - What remains are the edge sides at the two tube ends: two prismatic loops of opposite sign,
   normal to b, separated by `--separation` along b.
 - Exact cancellation needs the shared sides to coincide. The face planes are put on mid-planes, and
-  `Loopon_size` is tuned so that the effective loop extent (k + ½) `Loopon_size` matches the
-  prism half-side and half the separation. The values actually used are printed.
+  the half-lengths are written as (k + ½) `Loopon_size`, the prism half-side and half the
+  separation. That is the exact contour with `Method: line`, and the effective loop extent of the
+  loopon grid with `Method: loopons` (the bound lies halfway between grid rows), so both methods
+  cancel the screw sides. The values actually used are printed.
 
 ```bash
 python3 make_prismatic_dipole.py                       # ./prismatic_dipole.yaml (+ .json)

@@ -8,7 +8,7 @@ using namespace std;
 input::input(string name)
   : _name(name), _numberOfLoops(0),
     _nx(10), _ny(10), _nz(10),
-    _a0(3.3024), _looponSize(0.), _method("loopons"), _segmentTolerance(0.01),
+    _a0(3.3024), _looponSize(0.), _method("line"), _segmentTolerance(0.01),
     _outputFormat("xyz")
 {}
 
@@ -84,7 +84,7 @@ void input::readInputFile()
       _looponSize = readPositive(g, "Loopon_size", head);
       if (g["Segment_tolerance"]) fail(head, "'Segment_tolerance' needs Method: line");
     } else {
-      if (g["Loopon_size"]) _looponSize = readPositive(g, "Loopon_size", head);   // accepted, unused
+      if (g["Loopon_size"]) _looponSize = readPositive(g, "Loopon_size", head);   // kept, unused
       if (g["Segment_tolerance"]) _segmentTolerance = readPositive(g, "Segment_tolerance", head);
     }
     if (g["Output_format"]) _outputFormat = g["Output_format"].as<string>();
@@ -100,8 +100,11 @@ void input::readInputFile()
          << (_method == "line" ? "  (line integral, closed form)" : "  (Kroupa loopon sum)") << "\n";
     if (_method == "loopons")
       cout << "  Loopon_size    = " << _looponSize << " Ang\n";
-    else
+    else {
       cout << "  Segment_tol.   = " << _segmentTolerance << " Ang\n";
+      if (_looponSize > 0.)
+        cout << "  Loopon_size    = " << _looponSize << " Ang  (unused with Method: line)\n";
+    }
     cout
          << "  Loops          = " << _numberOfLoops << "\n";
     if (g["Output_format"])

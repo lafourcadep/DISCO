@@ -226,8 +226,10 @@ int main(int argc, char** argv)
     const bool        lineMethod = inputFile.getMethod() == "line";
     const double      segTol     = inputFile.getSegmentTolerance();
 #ifdef WITH_CUDA
-    if (useGPU && lineMethod) {   // GPU line-integral kernels: not implemented yet
-        cerr << "WARNING: Method: line runs on the CPU (OpenMP) backend for now\n";
+    if (useGPU && lineMethod && !gpuOpt.fp32 && !gpuLineFp64()) {
+        // mvcc build: no fp64 transcendental functions on the GPU
+        cerr << "WARNING: this GPU build has no double-precision line kernel (mvcc): Method: line"
+                " runs on the CPU; add --fp32 to run it on the GPU\n";
         useGPU = false;
     }
 #endif

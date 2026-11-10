@@ -57,7 +57,7 @@ def design_one(a, b, pair, separation):
 
 def face_loops(D):
     """The shear loops of one centred dipole, as exec_input loop dicts."""
-    return [dict(shape="rectangular", half_m=(D["k_m"] + 0.25) * D["da"], half_p=(D["k_p"] + 0.25) * D["da"],
+    return [dict(shape="rectangular", half_m=(D["k_m"] + 0.5) * D["da"], half_p=(D["k_p"] + 0.5) * D["da"],
                  corner_radius=0., center=np.asarray(c, float), m=[int(x) for x in D["b"]],
                  n=[int(x) for x in n_int]) for n_int, c in D["faces"]]
 

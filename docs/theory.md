@@ -1,5 +1,10 @@
 # Theory
 
+DISCO computes the isotropic elastic (Volterra) displacement field of each loop in one of two ways:
+an exact line integral along the contour (`Method: line`, the default), or a sum over infinitesimal
+loops tiling the cut (`Method: loopons`). Both give the same field, the line integral exactly and the
+loopon sum in the limit `Loopon_size` → 0.
+
 ## Loops as sums of loopons
 
 A dislocation loop of Burgers vector **b** bounding a planar surface S produces a displacement field
@@ -44,6 +49,36 @@ The cost is therefore proportional to atoms × total loopons × 27 (see [CPU or 
     The loopon step sets how finely the loop contour is resolved. The default used by the
     generators, 0.4 a0, is well below the interatomic distance.
 
+## Line integral (`Method: line`)
+
+For a cut S bounded by a contour C, Stokes' theorem turns the surface integral of the Kroupa field
+into a solid-angle term and line integrals along C (the Burgers / de Wit form, Hirth & Lothe ch. 4):
+
+$$
+\mathbf u(\mathbf x) = \frac{\mathbf b\,\Omega(\mathbf x)}{4\pi}
++ \sum_{\text{segments}} \left[ \left(c_3 - \frac{1}{4\pi}\right) J_0\,\mathbf w
+- c_3\,(\mathbf d\cdot\mathbf w)\,(K_0\,\mathbf d + K_1\,\mathbf t) \right],
+\qquad c_3 = \frac{1}{8\pi(1-\nu)}
+$$
+
+- Ω is the solid angle subtended by S, positive on the side n̂ points to. It is the sum, over a fan
+  of triangles from the loop centre, of the Van Oosterom–Strackee formula. It jumps by 4π across S,
+  which gives the displacement jump u⁺ − u⁻ = −b exactly.
+- For a straight segment A → B with unit tangent **t**, **w** = **b** × **t**. With R(s) = **d** + s**t**
+  (R = x′ − x, **d** ⟂ **t**) and s running from s_A to s_B,
+  J₀ = ∫ds/R = ln[(R_B + s_B)/(R_A + s_A)], K₀ = ∫ds/R³ = [s/(d²R)] and K₁ = ∫s ds/R³ = [−1/R].
+  J₀ and K₀ are evaluated in cancellation-free forms.
+- C runs counter-clockwise about n. The signs of the three terms and this orientation were fixed by
+  comparison with a direct quadrature of the Kroupa kernel over S: of the 16 combinations, only this
+  one agrees (to 2 × 10⁻¹⁰ Å). `tests/test_barnett.cpp` checks it for glide, prismatic and mixed loops
+  of every shape. The field is singular on C itself, but the cut lies on a mid-plane between
+  atomic planes, so no atom is closer to C than d/2.
+- Curved contours are cut into chords of sagitta ≤ `Segment_tolerance`; the closed form is exact
+  for that polygon (`Code/barnett.hpp`, `loop::polyline`).
+
+The same 27 periodic images are summed as for loopons. The cost is proportional to
+atoms × total segments × 27.
+
 ## Prismatic loops: adding or removing matter
 
 For a loop with b · n ≠ 0, the Volterra cut opens a gap or makes its lips overlap by |b · n̂|.
@@ -59,10 +94,11 @@ See [Input file](input.md#prismatic-and-mixed-loops-b-n-0).
 The matter step wraps the Kroupa sum and does not replace it:
 
 1. **Slab selection** (host). The slab atoms are those between the two mid-planes that bound
-   |b · n̂| and inside the contour, with the same contour test as the loopon grid. All slabs are
+   |b · n̂| and inside the contour, with the same contour test as the loopon grid and the polyline. All slabs are
    selected on the perfect lattice.
 2. **Vacancy loops**: the slab atoms are deleted.
-3. **Kroupa sum** (GPU or CPU): one call for all loops, glide and prismatic alike. Each loopon
+3. **Field** (GPU or CPU): one call for all loops, glide and prismatic alike, line integral or
+   Kroupa sum. The line integral's jump is exactly −b. With loopons, each loopon
    carries the full **b**, including its component along n (the m · n terms of the formula above).
 4. **Interstitial loops**: each copy is appended at the site of its source atom, with the
    displacement already computed for that atom plus sign(s) **b**. No kernel is run for the copies.
@@ -111,4 +147,7 @@ changes by more than 0.01 %.
 
 - F. Kroupa, "Dislocation dipoles and dislocation loops", *J. Phys. Colloques* **27** (1966) C3-154.
 - J. P. Hirth and J. Lothe, *Theory of Dislocations*, 2nd ed., Wiley (1982).
+- D. M. Barnett, "The displacement field of a triangular dislocation loop", *Phil. Mag. A* **51** (1985) 383.
+- A. Van Oosterom and J. Strackee, "The solid angle of a plane triangle", *IEEE Trans. Biomed. Eng.*
+  **30** (1983) 125.
 - E. B. Tadmor and R. E. Miller, *Modeling Materials*, Cambridge University Press (2011).

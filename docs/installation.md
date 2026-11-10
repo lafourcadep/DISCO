@@ -96,3 +96,14 @@ normals with even and odd `Nx`, `Ny`, `Nz`.
 the Kroupa jump across the cut is −b·n̂, so m·n > 0 is a vacancy loop and m·n < 0 an interstitial one;
 the slab holds |b·n̂|/d atomic planes, and its atom count is ρ A |b·n̂|. The test covers ½⟨111⟩ on (111) and on {110},
 and a⟨100⟩ on (100).
+
+`tests/test_barnett.cpp` checks the line-integral field (see [Theory](theory.md#line-integral-method-line)):
+
+| # | Test | Check |
+|---|---|---|
+| 1 | Against a 7-point Gauss quadrature of the Kroupa kernel over the cut | < 1e-6 Å (measured ≤ 4e-10 Å), glide, prismatic and mixed loops, every shape |
+| 2 | Jump across the cut | −b inside the contour, 0 outside |
+| 3 | Invariance | fan apex moved, starting vertex rotated: < 1e-11 Å |
+| 4 | Loopon sum | converges to the line integral as `Loopon_size` → 0 |
+| 5 | Far field | a small loop matches one loopon of the same area |
+| 6 | Polyline | counter-clockwise about n, area of the contour |

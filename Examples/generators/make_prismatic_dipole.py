@@ -107,11 +107,12 @@ def write(path, D, a0, cells, fmt):
              f"# b = a0/2 [{' '.join(map(str, b))}], loop side {2 * D['half_side']:.2f} A, "
              f"loops at b.x = +/-{D['half_sep']:.2f} A",
              "general:", f"  a0: {a0}", f"  Nx: {cells}", f"  Ny: {cells}", f"  Nz: {cells}",
-             f"  Loopon_size: {g(D['da'])}", f"  Output_format: {fmt}", "", "dislocations:"]
+             "  Method: line", f"  Loopon_size: {g(D['da'])}", f"  Output_format: {fmt}", "",
+             "dislocations:"]
     for n_int, c in D["faces"]:
         lines += ["  - Shape: rectangular",
-                  f"    Half_m: {g((D['k_m'] + 0.25) * D['da'])}",   # quarter step past the last
-                  f"    Half_p: {g((D['k_p'] + 0.25) * D['da'])}",   # grid row: no rounding loss
+                  f"    Half_m: {g((D['k_m'] + 0.5) * D['da'])}",    # exact for Method: line; halfway
+                  f"    Half_p: {g((D['k_p'] + 0.5) * D['da'])}",    # between loopon rows
                   "    Corner_radius: 0",
                   f"    Center: [{', '.join(g(x) for x in c)}]",
                   f"    m: [{', '.join(map(str, b))}]",
@@ -124,7 +125,7 @@ def write(path, D, a0, cells, fmt):
 def write_sidecar(path, D, a0, cells, fmt):
     """JSON ground truth next to the YAML (exec_input.write_sidecar): after the screw sides
     cancel, two closed prismatic 1/2<111> loops of opposite sign, normal to b, 0 screw."""
-    loops = [dict(shape="rectangular", half_m=(D["k_m"] + 0.25) * D["da"], half_p=(D["k_p"] + 0.25) * D["da"],
+    loops = [dict(shape="rectangular", half_m=(D["k_m"] + 0.5) * D["da"], half_p=(D["k_p"] + 0.5) * D["da"],
                   corner_radius=0., center=list(c), m=[int(x) for x in D["b"]], n=[int(x) for x in n_int])
              for n_int, c in D["faces"]]
     general = E.general_block(a0, cells, D["da"], fmt)

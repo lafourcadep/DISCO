@@ -214,8 +214,9 @@ def shared_side_loops(a, faces, centres, corners, combo, Lint, unit_len):
     da = w / (k_p + 0.5)                         # tile edge (k_p + 1/2) da on the corner line
     along = w if a.shape == "square" else (a.half_m * unit_len if a.half_m is not None else 14. / 11. * w)
     k_l = max(1, round(along / da - 0.5))
-    # a quarter step past the last grid row: no rounding loss in exec_cuda's |u| <= Half test
-    loops = [dict(shape="rectangular", half_m=(k_l + 0.25) * da, half_p=(k_p + 0.25) * da,
+    # Half = (k + 1/2) da: the exact contour of Method: line, and halfway between grid
+    # rows, so Method: loopons keeps the same nodes (|u| <= Half test, no rounding loss)
+    loops = [dict(shape="rectangular", half_m=(k_l + 0.5) * da, half_p=(k_p + 0.5) * da,
                   corner_radius=0., side=[int(x) for x in Lint], center=c, m=list(m),
                   n=[int(x) for x in n]) for (n, _, _), c, m in zip(faces, centres, combo)]
     return loops, da, (k_l + 0.5) * da, w

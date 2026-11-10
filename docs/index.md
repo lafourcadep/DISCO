@@ -3,9 +3,11 @@
 **DISlocation COnfiguration generator.** DISCO builds atomistic BCC samples that contain
 dislocation loops, ready for molecular dynamics.
 
-Each loop is tiled by small square (or rhombic) elements, the *loopons*. The displacement of
-every atom is the sum of the elastic fields of all loopons (Kroupa, 1966), with periodic images.
-The sum runs on a GPU (CUDA) or on the cores of a CPU (OpenMP); both backends give the same sample.
+The displacement of every atom is the isotropic elastic field of all loops, with periodic images.
+By default it is computed exactly, as a closed-form line integral along each loop contour. It can
+also be computed as the sum over small square (or rhombic) elements tiling each loop, the *loopons*
+(Kroupa, 1966). The computation runs on a GPU (CUDA, or Apple GPUs through mvcc) or on the cores of a
+CPU (OpenMP).
 
 <figure markdown="span">
   ![A rounded-rectangle loop tiled by loopons](assets/kroupa_loopons.png){ width="380" }

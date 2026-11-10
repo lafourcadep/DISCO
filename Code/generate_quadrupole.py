@@ -150,6 +150,7 @@ def write_input(filename, a0, nx, ny, nz, radius, loopon_size, loops, fmt):
         f.write(f"  Nx: {nx}\n")
         f.write(f"  Ny: {ny}\n")
         f.write(f"  Nz: {nz}\n")
+        f.write("  Method: line\n")
         f.write(f"  Loopon_size: {loopon_size:.10g}\n")
         f.write(f"  Output_format: {fmt}\n")
         f.write("\n")

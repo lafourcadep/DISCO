@@ -57,6 +57,7 @@ struct GpuOptions {
 #ifdef WITH_CUDA
 bool gpuAvailable();                 // a CUDA device can be used
 void printGpuInfo();                 // "--- GPU: <name> ---" banner
+bool gpuLineFp64();                  // the build has the fp64 line kernel (not under mvcc)
 void kroupaGPU(const AtomArrays& atoms, const std::vector<LoopData>& loops,
                double dx, double dy, double dz, const GpuOptions& opt, BackendTiming& t);
 #endif

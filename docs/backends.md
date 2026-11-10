@@ -1,6 +1,7 @@
 # CPU or GPU
 
-Both backends evaluate the same pair term (`Code/kroupa.hpp`), in double precision.
+Both backends evaluate the same pair terms in double precision: the line-integral segment term
+(`Code/barnett.hpp`, `Method: line`) or the Kroupa loopon term (`Code/kroupa.hpp`, `Method: loopons`).
 They only receive loopon positions and loop parameters (b, m, n, dS), so they do not depend on
 the loop shape. The atoms added or removed for prismatic loops are handled on the host, before
 and after the kernel, identically for both backends
@@ -12,7 +13,8 @@ cooperatively into shared memory. A tiled kernel handles loops too large for sha
 **Apple-silicon GPU (`exec_mvcc`).** The same CUDA source, compiled with
 [mvcc](https://github.com/doximity/mvcc), which translates CUDA to Metal (see
 [Installation](installation.md#apple-silicon-gpu-mvcc)). Apple GPUs have no fp64 hardware, so run it
-with `--fp32` (below).
+with `--fp32` (below). mvcc also has no double-precision `log` and `atan2`, so an `exec_mvcc` run with
+`Method: line` and without `--fp32` falls back to the CPU backend, with a warning.
 
 **CPU (`exec_cpu`, or `exec_cuda --cpu`).** The atoms are shared among the OpenMP threads. For each
 atom and periodic image, the loop over the loopons is vectorised (SIMD). The summation order is
@@ -28,21 +30,26 @@ exec_cuda [--cpu] [--fp32] [--gpu-chunk <pairs>] <input.yaml>
 |---|---|
 | `--cpu` | OpenMP backend even if a GPU is present |
 | `--fp32` | GPU only: single-precision pair term (see below) |
-| `--gpu-chunk <pairs>` | GPU only: at most this many atom–loopon pairs per kernel launch, the host waiting after each launch. `0` turns chunking off. Default: on for Apple GPUs (10⁷ pairs in fp64, 2 × 10⁸ in fp32), off otherwise |
+| `--gpu-chunk <pairs>` | GPU only: at most this many atom–loopon pairs per kernel launch, the host waiting after each launch; an atom–segment pair counts as ten. `0` turns chunking off. Default: on for Apple GPUs (10⁷ pairs in fp64, 2 × 10⁸ in fp32), off otherwise |
 
 **Chunking.** A launch then covers only a range of atoms. Each atom's sum is unchanged, so the
 output is identical with or without chunking. It exists because mvcc's runtime aborts any GPU wait
 longer than 8 s (reported as `an illegal memory access was encountered`). On NVIDIA GPUs it is
 not needed.
 
-**Single precision (`--fp32`).** The pair term is evaluated in float, with three safeguards:
+**Single precision (`--fp32`).** The pair term (segment or loopon) is evaluated in float, with three
+safeguards:
 
-- loopons are uploaded as float offsets from the loopon centroid c;
+- polyline vertices are uploaded as float offsets from the loop centre, loopons as offsets from the
+  loopon centroid c;
 - each atom is reduced to a − c in double before rounding to float, so coordinates near the loop,
   where the field varies fastest, keep their precision;
 - the sum over the loopons of each periodic image is in float, and the 27 image sums in double.
 
 Loopons in float also halve the shared memory, so loops of up to 2730 loopons take the fast path.
+On Apple GPUs the shared-memory limit is taken as 32 KB (a Metal threadgroup), whatever mvcc reports.
+With `Method: line` the differences from double precision stay below 3 × 10⁻⁵ Å (rms ~10⁻⁶ Å), on
+samples of up to 315 000 atoms.
 Compared with the double-precision output, displacements differ by at most 5 × 10⁻⁶ Å
 (rms ~2 × 10⁻⁷ Å). This was measured on four samples of up to 128 649 atoms, including
 interstitial loops with atoms d/2 from the cut, and DXA finds the same loops.
@@ -56,8 +63,22 @@ digit (1e-8 Å).
 
 ## Speed
 
-Speed is measured in atom–loopon pairs per second, where each pair includes its 27 periodic images.
-The run time is roughly atoms × total loopons / rate.
+Speed is measured in atom–segment (`line`) or atom–loopon (`loopons`) pairs per second, where each
+pair includes its 27 periodic images. The run time is roughly atoms × total segments (or loopons) / rate.
+An atom–segment pair costs about ten atom–loopon pairs, but loops have far fewer segments than loopons.
+
+`Method: line`:
+
+| Hardware | Backend | Rate |
+|---|---|---|
+| Apple M4 Pro, 12 threads | CPU | 18–19 M pairs/s |
+| Apple M4 Pro GPU (16 cores), mvcc 1.1.1, `--fp32` | GPU | ~220 M pairs/s |
+
+For example, 8 rounded hexagonal interstitial loops (circumradius 30 Å, 48 segments each) in
+253 000 atoms take 5.1 s on the M4 Pro CPU and 0.5 s on its GPU (`--fp32`). With loopons at the
+0.31 Å step that interstitial loops need, the same sample takes ~265 s on the CPU and 58 s on the GPU.
+
+`Method: loopons`:
 
 | Hardware | Backend | Rate |
 |---|---|---|

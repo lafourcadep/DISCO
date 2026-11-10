@@ -28,6 +28,14 @@
 #include <cuda_runtime.h>
 
 #include "backend.hpp"
+#include "barnett.hpp"
+
+// mvcc (CUDA on Apple GPUs, defines __MVCC__) emulates fp64 and rejects fp64
+// transcendental functions (log, atan2): the double-precision line kernel is
+// left out there, and Method: line needs --fp32 on such a build.
+#if defined(__MVCC__)
+#define DISCO_NO_FP64_LINE 1
+#endif
 
 using namespace std;
 
@@ -283,6 +291,88 @@ __global__ void kroupa_kernel_tiled_f(
 }
 
 // =============================================================================
+// LINE-INTEGRAL KERNELS  (Method: line, barnett.hpp)
+//
+// One thread per atom; the loop's polyline (a few to a few hundred vertices) is
+// staged in shared memory when it fits, read from global memory otherwise.
+// fp64: same work and order as the CPU backend. fp32 (--fp32): vertices as float
+// offsets from the loop centre c, atom reduced to a - c in double, each periodic
+// image's field in float, the 27 image fields summed in double.
+// =============================================================================
+#ifndef DISCO_NO_FP64_LINE
+__global__ void line_kernel(
+    const double* __restrict__ d_atomX, const double* __restrict__ d_atomY,
+    const double* __restrict__ d_atomZ,
+    double* d_displX, double* d_displY, double* d_displZ, int nbAtoms,
+    const double* __restrict__ d_vx, const double* __restrict__ d_vy,
+    const double* __restrict__ d_vz, int nv, int useShared,
+    double cx, double cy, double cz, double bx, double by, double bz,
+    double dx, double dy, double dz)
+{
+    extern __shared__ double shV[];
+    const double *vx = d_vx, *vy = d_vy, *vz = d_vz;
+    if (useShared) {
+        for (int i = threadIdx.x; i < nv; i += blockDim.x) {
+            shV[i] = d_vx[i]; shV[nv + i] = d_vy[i]; shV[2*nv + i] = d_vz[i];
+        }
+        __syncthreads();
+        vx = shV; vy = shV + nv; vz = shV + 2*nv;
+    }
+    const int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= nbAtoms) return;
+    const double ax = d_atomX[tid], ay = d_atomY[tid], az = d_atomZ[tid];
+    double ux = 0., uy = 0., uz = 0.;
+    for (int ii = -1; ii <= 1; ii++)
+    for (int jj = -1; jj <= 1; jj++)
+    for (int kk = -1; kk <= 1; kk++)
+        barnettLoop<double>(ax - dx*ii, ay - dy*jj, az - dz*kk, vx, vy, vz, nv,
+                            cx, cy, cz, bx, by, bz, ux, uy, uz);
+    d_displX[tid] += ux;
+    d_displY[tid] += uy;
+    d_displZ[tid] += uz;
+}
+#endif
+
+__global__ void line_kernel_f(
+    const double* __restrict__ d_atomX, const double* __restrict__ d_atomY,
+    const double* __restrict__ d_atomZ,
+    double* d_displX, double* d_displY, double* d_displZ, int nbAtoms,
+    const float* __restrict__ d_vx, const float* __restrict__ d_vy,
+    const float* __restrict__ d_vz, int nv, int useShared,
+    double cx, double cy, double cz, float bx, float by, float bz,
+    float dx, float dy, float dz)
+{
+    extern __shared__ float shVf[];
+    const float *vx = d_vx, *vy = d_vy, *vz = d_vz;
+    if (useShared) {
+        for (int i = threadIdx.x; i < nv; i += blockDim.x) {
+            shVf[i] = d_vx[i]; shVf[nv + i] = d_vy[i]; shVf[2*nv + i] = d_vz[i];
+        }
+        __syncthreads();
+        vx = shVf; vy = shVf + nv; vz = shVf + 2*nv;
+    }
+    const int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= nbAtoms) return;
+    const float px = (float)(d_atomX[tid] - cx);
+    const float py = (float)(d_atomY[tid] - cy);
+    const float pz = (float)(d_atomZ[tid] - cz);
+    double ux = 0., uy = 0., uz = 0.;
+    for (int ii = -1; ii <= 1; ii++)
+    for (int jj = -1; jj <= 1; jj++)
+    for (int kk = -1; kk <= 1; kk++) {
+        float fx = 0.f, fy = 0.f, fz = 0.f;
+        barnettLoop<float>(px - dx*(float)ii, py - dy*(float)jj, pz - dz*(float)kk, vx, vy, vz, nv,
+                           0.f, 0.f, 0.f, bx, by, bz, fx, fy, fz);
+        ux += (double)fx;
+        uy += (double)fy;
+        uz += (double)fz;
+    }
+    d_displX[tid] += ux;
+    d_displY[tid] += uy;
+    d_displZ[tid] += uz;
+}
+
+// =============================================================================
 // HOST HELPERS
 // =============================================================================
 static const int THREADS_PER_BLOCK = 256;
@@ -382,6 +472,65 @@ static int launchKroupaF(const DevBuffers& B,
     return launches;
 }
 
+// One loop, line integral (fp64 or fp32). Returns the number of launches.
+static int launchLine(const DevBuffers& B, const LoopData& lp, bool fp32, size_t maxShmem,
+                      double dx, double dy, double dz, double chunkPairs,
+                      double* d_v, float* d_vf)
+{
+    const int nv = (int)lp.vx.size();
+    const double bx = lp.phys.bx * lp.phys.mx, by = lp.phys.by * lp.phys.my, bz = lp.phys.bz * lp.phys.mz;
+    int launches = 0;
+    if (fp32) {
+        vector<float> v(3 * (size_t)nv);
+        for (int k = 0; k < nv; k++) {
+            v[k]        = (float)(lp.vx[k] - lp.cx);
+            v[nv + k]   = (float)(lp.vy[k] - lp.cy);
+            v[2*nv + k] = (float)(lp.vz[k] - lp.cz);
+        }
+        CUDA_CHECK(cudaMemcpy(d_vf, v.data(), v.size() * sizeof(float), cudaMemcpyHostToDevice));
+        const size_t shmem = 3 * (size_t)nv * sizeof(float);
+        const int useShared = shmem <= maxShmem;
+        forAtomChunks(B.nbAtoms, chunkAtomsFor(chunkPairs, nv), [&](int off, int cnt) {
+            line_kernel_f<<<(cnt + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK,
+                            useShared ? shmem : 0>>>(
+                B.ax + off, B.ay + off, B.az + off, B.ux + off, B.uy + off, B.uz + off, cnt,
+                d_vf, d_vf + nv, d_vf + 2*nv, nv, useShared, lp.cx, lp.cy, lp.cz,
+                (float)bx, (float)by, (float)bz, (float)dx, (float)dy, (float)dz);
+            launches++;
+        });
+    } else {
+#ifndef DISCO_NO_FP64_LINE
+        vector<double> v(3 * (size_t)nv);
+        for (int k = 0; k < nv; k++) { v[k] = lp.vx[k]; v[nv + k] = lp.vy[k]; v[2*nv + k] = lp.vz[k]; }
+        CUDA_CHECK(cudaMemcpy(d_v, v.data(), v.size() * sizeof(double), cudaMemcpyHostToDevice));
+        const size_t shmem = 3 * (size_t)nv * sizeof(double);
+        const int useShared = shmem <= maxShmem;
+        forAtomChunks(B.nbAtoms, chunkAtomsFor(chunkPairs, nv), [&](int off, int cnt) {
+            line_kernel<<<(cnt + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, THREADS_PER_BLOCK,
+                          useShared ? shmem : 0>>>(
+                B.ax + off, B.ay + off, B.az + off, B.ux + off, B.uy + off, B.uz + off, cnt,
+                d_v, d_v + nv, d_v + 2*nv, nv, useShared, lp.cx, lp.cy, lp.cz,
+                bx, by, bz, dx, dy, dz);
+            launches++;
+        });
+#else
+        (void)d_v;
+        cerr << "ERROR: this build has no fp64 line kernel (mvcc); use --fp32\n";
+        exit(EXIT_FAILURE);
+#endif
+    }
+    return launches;
+}
+
+bool gpuLineFp64()
+{
+#ifdef DISCO_NO_FP64_LINE
+    return false;
+#else
+    return true;
+#endif
+}
+
 // =============================================================================
 // Device queries
 // =============================================================================
@@ -410,6 +559,11 @@ void printGpuInfo()
 // measured ~5 M pairs/s in fp64 (emulated) on an M4 Pro.
 static const double APPLE_CHUNK_PAIRS_FP64 = 1.0e7;
 static const double APPLE_CHUNK_PAIRS_FP32 = 2.0e8;
+// Line integral: one atom-segment pair costs about LINE_PAIR_COST atom-loopon pairs
+static const double LINE_PAIR_COST = 10.;
+// Apple GPUs: a threadgroup has 32 KB; mvcc reports more and spills the rest to
+// device memory, so stay within 32 KB
+static const size_t APPLE_MAX_SHMEM = 32768;
 
 void kroupaGPU(const AtomArrays& atoms, const vector<LoopData>& loops,
                double dx, double dy, double dz, const GpuOptions& opt, BackendTiming& t)
@@ -425,8 +579,9 @@ void kroupaGPU(const AtomArrays& atoms, const vector<LoopData>& loops,
     CUDA_CHECK(cudaGetDevice(&devId));
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, devId));
-    const size_t maxShmem = prop.sharedMemPerBlock;
     const bool appleGPU = string(prop.name).rfind("Apple", 0) == 0;
+    const size_t maxShmem = appleGPU ? min((size_t)prop.sharedMemPerBlock, APPLE_MAX_SHMEM)
+                                     : (size_t)prop.sharedMemPerBlock;
 
     double chunkPairs = opt.chunkPairs;
     if (chunkPairs < 0.)
@@ -438,13 +593,15 @@ void kroupaGPU(const AtomArrays& atoms, const vector<LoopData>& loops,
 
     // ---- Allocate device memory ----
     Clock::time_point t0 = Clock::now();
-    int maxLp = 0;
-    for (auto& l : loops) maxLp = max(maxLp, (int)l.x.size());
+    int maxLp = 0, maxV = 0;
+    for (auto& l : loops) { maxLp = max(maxLp, (int)l.x.size()); maxV = max(maxV, (int)l.vx.size()); }
 
     double *d_atomX, *d_atomY, *d_atomZ;
     double *d_displX, *d_displY, *d_displZ;
     double *d_lpX = nullptr, *d_lpY = nullptr, *d_lpZ = nullptr;
     float  *d_lpXf = nullptr, *d_lpYf = nullptr, *d_lpZf = nullptr;
+    double *d_v = nullptr;     // line: polyline vertices (x | y | z)
+    float  *d_vf = nullptr;
 
     CUDA_CHECK(cudaMalloc(&d_atomX,  nbAtoms * sizeof(double)));
     CUDA_CHECK(cudaMalloc(&d_atomY,  nbAtoms * sizeof(double)));
@@ -452,7 +609,13 @@ void kroupaGPU(const AtomArrays& atoms, const vector<LoopData>& loops,
     CUDA_CHECK(cudaMalloc(&d_displX, nbAtoms * sizeof(double)));
     CUDA_CHECK(cudaMalloc(&d_displY, nbAtoms * sizeof(double)));
     CUDA_CHECK(cudaMalloc(&d_displZ, nbAtoms * sizeof(double)));
-    if (opt.fp32) {
+    if (maxV > 0) {
+        if (opt.fp32) CUDA_CHECK(cudaMalloc(&d_vf, 3 * (size_t)maxV * sizeof(float)));
+        else          CUDA_CHECK(cudaMalloc(&d_v,  3 * (size_t)maxV * sizeof(double)));
+    }
+    if (maxLp == 0) {
+        // line method only: no loopon buffers
+    } else if (opt.fp32) {
         CUDA_CHECK(cudaMalloc(&d_lpXf, maxLp * sizeof(float)));
         CUDA_CHECK(cudaMalloc(&d_lpYf, maxLp * sizeof(float)));
         CUDA_CHECK(cudaMalloc(&d_lpZf, maxLp * sizeof(float)));
@@ -483,6 +646,19 @@ void kroupaGPU(const AtomArrays& atoms, const vector<LoopData>& loops,
     for (int l = 0; l < nbLoops; l++) {
         const Clock::time_point tl = Clock::now();
         const LoopData& lp = loops[l];
+        if (lp.line) {
+            const int nv = (int)lp.vx.size();
+            const size_t shv = 3 * (size_t)nv * (opt.fp32 ? sizeof(float) : sizeof(double));
+            cout << "  Loop " << l+1 << "/" << nbLoops << ":  " << nv << " segments  "
+                 << (shv <= maxShmem ? "[shared]" : "[global]");
+            const int launches = launchLine(B, lp, opt.fp32, maxShmem, dx, dy, dz,
+                                            chunkPairs / LINE_PAIR_COST, d_v, d_vf);
+            CUDA_CHECK(cudaDeviceSynchronize());
+            t.loopSec[l] = seconds(tl, Clock::now());
+            cout << "  " << launches << " launch" << (launches > 1 ? "es" : "") << ", "
+                 << t.loopSec[l] << " s\n";
+            continue;
+        }
         const int nLp = (int)lp.x.size();
         const size_t shmem = (size_t)3 * nLp * (opt.fp32 ? sizeof(float) : sizeof(double));
 
@@ -540,5 +716,7 @@ void kroupaGPU(const AtomArrays& atoms, const vector<LoopData>& loops,
     cudaFree(d_displX); cudaFree(d_displY); cudaFree(d_displZ);
     if (d_lpX)  { cudaFree(d_lpX);  cudaFree(d_lpY);  cudaFree(d_lpZ); }
     if (d_lpXf) { cudaFree(d_lpXf); cudaFree(d_lpYf); cudaFree(d_lpZf); }
+    if (d_v)    cudaFree(d_v);
+    if (d_vf)   cudaFree(d_vf);
     t.download = seconds(t2, Clock::now());
 }

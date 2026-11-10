@@ -331,7 +331,10 @@ def write_yaml(path, general, loops, header_lines=()):
     if lines:
         lines.append("")
     lines += ["general:", f"  a0: {general['a0']}", f"  Nx: {general['Nx']}", f"  Ny: {general['Ny']}",
-              f"  Nz: {general['Nz']}", f"  Loopon_size: {_g(general['Loopon_size'])}"]
+              f"  Nz: {general['Nz']}"]
+    if general.get("Method"):
+        lines.append(f"  Method: {general['Method']}")
+    lines.append(f"  Loopon_size: {_g(general['Loopon_size'])}")
     if general.get("Output_format"):
         lines.append(f"  Output_format: {general['Output_format']}")
     lines += ["", "dislocations:"]
@@ -419,7 +422,10 @@ def write_sidecar(path, bcc, general, loops, expected, extra=None, script=None):
         f.write(text + "\n")
 
 
-def general_block(a0, cells, loopon_size, fmt):
+def general_block(a0, cells, loopon_size, fmt, method="line"):
+    """general: block. Method: line (exact contour) is written explicitly; Loopon_size is
+    kept so that switching to Method: loopons gives the matching grid."""
     if isinstance(cells, int):
         cells = (cells, cells, cells)
-    return dict(a0=a0, Nx=cells[0], Ny=cells[1], Nz=cells[2], Loopon_size=loopon_size, Output_format=fmt)
+    return dict(a0=a0, Nx=cells[0], Ny=cells[1], Nz=cells[2], Method=method, Loopon_size=loopon_size,
+                Output_format=fmt)

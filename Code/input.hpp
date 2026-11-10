@@ -19,7 +19,7 @@ private:
   int    _nx, _ny, _nz;
   double _a0;
   double _looponSize;  // Loopon grid step, same for every loop (Angstrom); 0 if unused
-  std::string _method;        // "loopons" (Kroupa sum, default) | "line" (line integral)
+  std::string _method;        // "line" (closed-form line integral, default) | "loopons" (Kroupa sum)
   double _segmentTolerance;   // line: max chord sagitta of curved contours (Angstrom)
   std::string _outputFormat;  // "xyz" | "lammps" | "both" | "none"  (default: "xyz")
 

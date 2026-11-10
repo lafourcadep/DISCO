@@ -51,9 +51,10 @@ a⟨100⟩ (|b₃|² = a0² < 3a0²/2, favourable) or a⟨110⟩ (|b₃|² = 2a0
     - Every {110} pair has solutions: at 90°, 32 junction and 8 annihilation assignments; at 60°,
       2 of each (a global sign flip). `--list` prints them.
 - **Size, square or rectangular.** `--d` fixes the face half-width w. `Loopon_size` is tuned close
-  to `--loopon-size` so that w = (k + ½) `Loopon_size`, which puts the loopon tile edge exactly on
-  the corner line. Square: half-length along L = w. Rectangle: `--half-m` along L (default 14/11 w),
-  rounded to the grid.
+  to `--loopon-size` so that w = (k + ½) `Loopon_size`, and the half-lengths are written as
+  (k + ½) `Loopon_size`. The loop edge then lies exactly on the corner line with both methods: it is
+  the contour itself with `Method: line`, and the loopon tile edge with `Method: loopons`. Square:
+  half-length along L = w. Rectangle: `--half-m` along L (default 14/11 w), rounded to the grid.
 - **Size, circular.** Without `--radius`, the circle gets the smallest radius (rounded up to 0.1 Å)
   whose chords on every corner line overlap by `--overlap` (20 Å). An explicit radius is checked,
   and it is rejected if two neighbours do not cross. Below 5 Å of overlap the script warns:
