@@ -5,8 +5,10 @@
 DISCO builds atomistic BCC samples containing dislocation loops, for molecular dynamics.
 Each loop is tiled by infinitesimal loops ("loopons"), and the displacement of every atom is the
 sum of their elastic fields (Kroupa, 1966), with periodic images. The sum runs on a GPU (CUDA) or
-on the cores of a CPU (OpenMP). Python generators write inputs for single loops on any BCC slip
-system, junction and annihilation quadrupoles, prismatic dipoles and large tiled samples.
+on the cores of a CPU (OpenMP). Loops can be circles, rectangles, parallelograms or convex polygons
+(hexagons). Prismatic loops (interstitial or vacancy) get the matching atoms added or removed.
+Python generators write inputs for single loops on any BCC slip system, junction and annihilation
+quadrupoles, prismatic dipoles, prismatic loops and large tiled samples.
 
 **Documentation: <https://lafourcadep.github.io/DISCO/>**
 

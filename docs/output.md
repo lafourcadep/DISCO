@@ -7,7 +7,9 @@
 | `both` | both of the above |
 | `none` | nothing (timing runs) |
 
-Files are written in the current directory. The sample has 2 · Nx · Ny · Nz atoms.
+Files are written in the current directory. The sample has 2 · Nx · Ny · Nz atoms, minus the atoms
+removed by vacancy loops and plus those added by interstitial loops (b · n ≠ 0, `Matter: auto`).
+The log prints the count. Added atoms come last in the file.
 
 !!! note "Origin"
     Input coordinates (loop centres, and the generators' JSON sidecars) use the **box centre** as origin.

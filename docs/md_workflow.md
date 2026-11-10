@@ -16,6 +16,12 @@ dislocation lines.
 
 Edit the `read_data` path, the deformation and the thermostat to suit your study.
 
+!!! warning "Samples with prismatic loops"
+    Interstitial and vacancy loops change the number of atoms but not the box, so the sample starts
+    under pressure (the log prints the expected volume change, ± A |b · n̂|). Relax the box first,
+    with `fix box/relax` and `minimize`, or a short NPT run, before the constant-volume run of the
+    template.
+
 !!! info "Potential file"
     The EAM potential is not distributed with DISCO. Download `Ta1_Ravelo_2013.eam.alloy`
     (R. Ravelo et al., *Phys. Rev. B* **88**, 134101 (2013)) from the

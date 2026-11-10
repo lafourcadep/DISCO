@@ -16,7 +16,11 @@ For each loop:
 - m is the unit Burgers direction (b = |b| m, |b| = a0 |m_Miller| / 2);
 - n is the unit loop-plane normal;
 - dS = `Loopon_size`² (square grid) or `Loopon_size`² sin(Dir_1, Dir_2) (oblique grid);
-- the swept area is A = N_loopons · dS.
+- the swept area is A = N_loopons · dS. It tends to the exact contour area as `Loopon_size` → 0;
+  for polygons the log prints both.
+
+The contour only decides which grid nodes are loopons. Every shape then goes through the same
+Kroupa sum, so a new shape needs no change to the kernels.
 
 ## Kroupa displacement field
 
@@ -51,6 +55,17 @@ it takes the atoms in a slab of thickness |b · n̂| inside the contour, then de
 u(x) + sign(s) **b**, so it lands on the other side of the cut. Since **b** is a lattice
 translation, originals and copies fill the gap with perfect crystal.
 See [Input file](input.md#prismatic-and-mixed-loops-b-n-0).
+
+The matter step wraps the Kroupa sum and does not replace it:
+
+1. **Slab selection** (host). The slab atoms are those between the two mid-planes that bound
+   |b · n̂| and inside the contour, with the same contour test as the loopon grid. All slabs are
+   selected on the perfect lattice.
+2. **Vacancy loops**: the slab atoms are deleted.
+3. **Kroupa sum** (GPU or CPU): one call for all loops, glide and prismatic alike. Each loopon
+   carries the full **b**, including its component along n (the m · n terms of the formula above).
+4. **Interstitial loops**: each copy is appended at the site of its source atom, with the
+   displacement already computed for that atom plus sign(s) **b**. No kernel is run for the copies.
 
 ## Loop placement
 

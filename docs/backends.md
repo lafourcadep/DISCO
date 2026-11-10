@@ -1,6 +1,10 @@
 # CPU or GPU
 
 Both backends evaluate the same pair term (`Code/kroupa.hpp`), in double precision.
+They only receive loopon positions and loop parameters (b, m, n, dS), so they do not depend on
+the loop shape. The atoms added or removed for prismatic loops are handled on the host, before
+and after the kernel, identically for both backends
+(see [Theory](theory.md#prismatic-loops-adding-or-removing-matter)).
 
 **GPU (`exec_cuda`).** One thread per atom. The loopon positions of the current loop are loaded
 cooperatively into shared memory. A tiled kernel handles loops too large for shared memory.

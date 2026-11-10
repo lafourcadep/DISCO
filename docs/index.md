@@ -19,19 +19,22 @@ The sum runs on a GPU (CUDA) or on the cores of a CPU (OpenMP); both backends gi
 - Any number of loops: circles, rectangles (optionally rounded, optionally rotated in their plane),
   parallelograms and convex polygons such as hexagons (optionally rounded), on any plane `n` with
   Burgers vector `b = a0/2 m`.
+- Prismatic and mixed loops (b · n ≠ 0), interstitial or vacancy: the atoms of the slab inside the
+  loop are added or removed, so the loops survive thermal MD.
 - Loop centres are moved onto the mid-plane between two atomic planes of the loop plane family.
 - Output as extended XYZ (OVITO) or LAMMPS data file.
 - Python generators for common configurations: single loops on all 48 BCC slip systems,
   junction and annihilation quadrupoles (one, or many different ones in one sample),
-  prismatic dipoles (one, or N at random positions), and large tiled samples with random positions. Each generated input comes with a JSON file holding the expected
+  prismatic dipoles (one, or N at random positions), prismatic loops with added or removed atoms
+  (circular or hexagonal), and large tiled samples with random positions. Each generated input comes with a JSON file holding the expected
   dislocation content.
 
 | | | | |
 |:-:|:-:|:-:|:-:|
 | ![](assets/g1_circle.png){ width="110" } | ![](assets/g2_rectangle.png){ width="110" } | ![](assets/g3_parallelogram.png){ width="110" } | ![](assets/g4_rect112.png){ width="110" } |
 | {110} circle | {110} rounded rectangle | ⟨111⟩ parallelogram | {112} rectangle |
-| ![](assets/g5_tube_junction.png){ width="110" } | ![](assets/g6_tube_annihilation.png){ width="110" } | ![](assets/g7_prismatic.png){ width="110" } | |
-| tube, junction | tube, annihilation | prismatic dipole | |
+| ![](assets/g5_tube_junction.png){ width="110" } | ![](assets/g6_tube_annihilation.png){ width="110" } | ![](assets/g7_prismatic.png){ width="110" } | ![](assets/g8_hexagonal.png){ width="110" } |
+| tube, junction | tube, annihilation | prismatic dipole | hexagonal interstitial loop |
 
 *Dislocation lines extracted by OVITO's DXA from samples written by DISCO.*
 
