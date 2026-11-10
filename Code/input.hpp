@@ -26,14 +26,17 @@ private:
   std::vector< std::vector<double> > _listM;
   std::vector< std::vector<double> > _listN;
   // All lengths in Angstrom; the centre is relative to the box centre.
-  std::vector<std::string>           _listShapes;       // "circular" | "rectangular" | "parallelogram"
-  std::vector<double>                _listRadius;       // circular: radius
+  std::vector<std::string>           _listShapes;       // "circular" | "rectangular" | "parallelogram" | "polygon" | "hexagonal"
+  std::vector<double>                _listRadius;       // circular: radius; polygon: circumradius
   std::vector<double>                _listHalfM;        // rectangular: half-length along m; parallelogram: Half_1
   std::vector<double>                _listHalfP;        // rectangular: half-length along p; parallelogram: Half_2
-  std::vector<double>                _listCornerRadius; // rectangular: corner radius
+  std::vector<double>                _listCornerRadius; // rectangular, polygon: corner radius
   std::vector< std::vector<double> > _listSide;         // rectangular: Half_m axis (empty = m);
-                                                        // parallelogram: Dir_1
+                                                        // parallelogram: Dir_1; polygon: Vertex_dir
   std::vector< std::vector<double> > _listDir2;         // parallelogram: Dir_2
+  std::vector<int>                   _listSides;        // polygon: number of sides (0 = Vertices)
+  std::vector< std::vector< std::vector<double> > > _listVertices; // polygon: explicit vertices
+  std::vector<std::string>           _listMatter;       // "auto" | "none" (loops with b.n != 0)
 
 public:
 
@@ -43,7 +46,7 @@ public:
   double              getA0();
   std::vector<int>    getNumberOfCells();
   int                 getNumberOfLoops();
-  int                 getNumberOfAtoms();
+  int                 getNumberOfAtoms();   // perfect BCC lattice, before any loop
   std::string         getOutputFileName();
   std::string         getOutputFormat();
   double              getLooponSize();
@@ -52,14 +55,18 @@ public:
   std::vector<double> getCenter(int dislo);
   std::vector<double> getM(int dislo);
   std::vector<double> getN(int dislo);
-  std::string         getShape(int dislo);        // "circular" or "rectangular"
-  double              getRadius(int dislo);       // circular only
+  std::string         getShape(int dislo);        // see _listShapes
+  double              getRadius(int dislo);       // circular: radius; polygon: circumradius
   double              getHalfM(int dislo);        // rectangular only
   double              getHalfP(int dislo);        // rectangular only
-  double              getCornerRadius(int dislo); // rectangular only
-  std::vector<double> getSide(int dislo);         // rectangular only; empty = along m
+  double              getCornerRadius(int dislo); // rectangular, polygon
+  std::vector<double> getSide(int dislo);         // rectangular: Half_m axis (empty = m);
+                                                  // polygon: Vertex_dir (empty = default)
   std::vector<double> getDir1(int dislo);         // parallelogram only
   std::vector<double> getDir2(int dislo);         // parallelogram only
+  std::string         getMatter(int dislo);       // "auto" or "none"
+  int                 getSides(int dislo);        // polygon: regular, 0 = explicit Vertices
+  std::vector< std::vector<double> > getVertices(int dislo);   // polygon, explicit
 };
 
 #endif

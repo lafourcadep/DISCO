@@ -9,7 +9,7 @@
 #include <iomanip>
 
 // Shape of the dislocation loop surface
-enum class LoopShape { CIRCULAR, RECTANGULAR, PARALLELOGRAM };
+enum class LoopShape { CIRCULAR, RECTANGULAR, PARALLELOGRAM, POLYGON };
 
 class loop {
 
@@ -20,7 +20,13 @@ private:
   double _radius;      // Circular loop radius
   double _half_m;      // Rectangular half-width along u (m by default); parallelogram Half_1
   double _half_p;      // Rectangular half-width along v (p by default); parallelogram Half_2
-  double _r_corner;    // Rounded-corner radius for rectangular (0 = sharp)
+  double _r_corner;    // Rounded-corner radius for rectangular / polygon (0 = sharp)
+  // Polygon: vertices in the orthonormal in-plane basis (_u, _v), counter-clockwise
+  // about n, and the inner polygon offset inward by _r_corner (the rounded contour is
+  // the set of points within _r_corner of it). _half_m / _half_p = bounding box.
+  std::vector<double> _pu, _pv;
+  std::vector<double> _qu, _qv;
+  std::vector<double> _nu, _nv;   // inward unit normal of side i (P_i -> P_i+1)
 
   std::vector<double> _center;   // Loop centre (Angstroms, already on a mid-plane)
   std::vector<double> _m;        // Normalised glide direction (Burgers vector direction)
@@ -68,8 +74,26 @@ public:
        std::vector<double> center, std::vector<double> m, std::vector<double> n,
        double latticeParameter, std::vector<double> compress);
 
+  // Convex polygon constructor
+  // vertices : in-plane offsets from the centre (Angstrom, 3 components each, any
+  //            order of traversal, strictly convex; the component along n is dropped)
+  // corner_r : corner rounding radius (0 = sharp), clamped to the largest radius
+  //            that keeps every side
+  // axis     : in-plane direction of the loopon grid axis u (empty = default)
+  loop(double da, const std::vector< std::vector<double> >& vertices, double corner_r,
+       std::vector<double> center, std::vector<double> m, std::vector<double> n,
+       double latticeParameter, std::vector<double> compress,
+       std::vector<double> axis = {});
+
   void generateLoopons();
   void generateSurface();
+
+  // In-plane point (u, v) along the grid axes _u, _v (oblique for a parallelogram)
+  // inside the loop contour, with the boundary rules of generateLoopons().
+  bool insideUV(double u, double v) const;
+  // rel = point - centre (Angstrom, already minimum-image): its projection on the
+  // loop plane lies inside the contour (the component along n is ignored).
+  bool contains(const double rel[3]) const;
 
   std::vector<double> getCenter()           const;
   std::vector<double> getM()                const;
@@ -80,7 +104,18 @@ public:
   int                 getNumberOfLoopons()  const;
   double              getSurface()          const;
   LoopShape           getShape()            const;
+  double              getCornerRadius()     const;
+  int                 getNumberOfVertices() const;   // polygon only
+  double              getContourArea()      const;   // exact area of the (rounded) contour
 };
+
+// Vertices (in-plane offsets from the centre, Angstrom) of a regular polygon with
+// `sides` sides and circumradius R in the plane normal to n. The first vertex lies
+// along vertexDir (in-plane; empty = the default grid axis u of the other shapes).
+std::vector< std::vector<double> > regularPolygon(int sides, double R,
+                                                  std::vector<double> vertexDir,
+                                                  const std::vector<double>& m,
+                                                  const std::vector<double>& n);
 
 // Move `center` (Angstrom, box-centred frame) along n onto the nearest plane
 // halfway between two atomic planes of the (hkl) = n family of the BCC

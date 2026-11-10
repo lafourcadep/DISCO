@@ -26,6 +26,7 @@
 #include "loop.hpp"
 #include "loop_deform.hpp"
 #include "backend.hpp"
+#include "prismatic.hpp"
 
 using namespace std;
 
@@ -202,7 +203,7 @@ int main(int argc, char** argv)
     const int         nbLoops    = inputFile.getNumberOfLoops();
     const string      outName    = inputFile.getOutputFileName();
     const string      outFormat  = inputFile.getOutputFormat();
-    const int         nbAtoms    = inputFile.getNumberOfAtoms();
+    int               nbAtoms    = inputFile.getNumberOfAtoms();   // changes with prismatic loops
     const double      da         = inputFile.getLooponSize();
 
     const double dx = nx*a0, dy = ny*a0, dz = nz*a0;
@@ -221,12 +222,24 @@ int main(int argc, char** argv)
     // ---- Build dislocation loops (host — only to generate loopon positions) ----
     vector<loop> listLoop;
     listLoop.reserve(nbLoops);
+    vector<double> planeSpacing(nbLoops);   // atomic-plane spacing of each loop normal
     for (int i = 0; i < nbLoops; i++) {
         double d;
         const vector<double> c = snapToMidPlane(inputFile.getCenter(i), inputFile.getN(i),
                                                 a0, nx, ny, nz, d);
         const string shape = inputFile.getShape(i);
-        loop l = (shape == "rectangular")
+        const bool isPolygon = (shape == "polygon" || shape == "hexagonal");
+        vector< vector<double> > verts;
+        if (isPolygon)
+            verts = inputFile.getSides(i) > 0
+                  ? regularPolygon(inputFile.getSides(i), inputFile.getRadius(i),
+                                   inputFile.getSide(i), inputFile.getM(i), inputFile.getN(i))
+                  : inputFile.getVertices(i);
+        loop l = isPolygon
+            ? loop(da, verts, inputFile.getCornerRadius(i),
+                   c, inputFile.getM(i), inputFile.getN(i),
+                   a0, compress, inputFile.getSide(i))
+            : (shape == "rectangular")
             ? loop(da,
                    inputFile.getHalfM(i), inputFile.getHalfP(i), inputFile.getCornerRadius(i),
                    c, inputFile.getM(i), inputFile.getN(i),
@@ -245,17 +258,31 @@ int main(int argc, char** argv)
         const double shift = sqrt((c[0]-c0[0])*(c[0]-c0[0]) + (c[1]-c0[1])*(c[1]-c0[1])
                                   + (c[2]-c0[2])*(c[2]-c0[2]));
         const double b = l.getBurgers()[0];
+        planeSpacing[i] = d;
         cout << "  Loop " << i+1 << ": " << inputFile.getShape(i)
-             << " | " << l.getNumberOfLoopons() << " loopons\n";
-        if (inputFile.getShape(i) == "rectangular")
+             << " | " << l.getNumberOfLoopons() << " loopons | "
+             << matterName(matterType(l)) << "\n";
+        if (shape == "rectangular") {
             cout << "    size   : Half_m " << inputFile.getHalfM(i) / b << " |b|, Half_p "
                  << inputFile.getHalfP(i) / b << " |b|  (|b| = " << b << " Ang)\n";
-        if (inputFile.getShape(i) == "rectangular" && !inputFile.getSide(i).empty()) {
-            const vector<double> sd = inputFile.getSide(i);
-            cout << "    side   : Half_m along [" << sd[0] << " " << sd[1] << " " << sd[2]
-                 << "], Half_p along Side x n\n";
+            if (!inputFile.getSide(i).empty()) {
+                const vector<double> sd = inputFile.getSide(i);
+                cout << "    side   : Half_m along [" << sd[0] << " " << sd[1] << " " << sd[2]
+                     << "], Half_p along Side x n\n";
+            }
         }
-        else if (inputFile.getShape(i) == "parallelogram")
+        else if (isPolygon) {
+            if (inputFile.getSides(i) > 0)
+                cout << "    size   : " << inputFile.getSides(i) << " sides, circumradius "
+                     << inputFile.getRadius(i) / b << " |b|  (|b| = " << b << " Ang)\n";
+            else
+                cout << "    size   : " << l.getNumberOfVertices() << " vertices  (|b| = "
+                     << b << " Ang)\n";
+            cout << "    contour: area " << l.getContourArea() << " Ang^2 (loopons "
+                 << l.getNumberOfLoopons() * l.getSurface() << "), corner radius "
+                 << l.getCornerRadius() << " Ang\n";
+        }
+        else if (shape == "parallelogram")
             cout << "    size   : Half_1 " << inputFile.getHalfM(i) / b << " |b|, Half_2 "
                  << inputFile.getHalfP(i) / b << " |b|  (|b| = " << b << " Ang)\n";
         else
@@ -277,6 +304,74 @@ int main(int argc, char** argv)
         hAtomY[i] = atomPos[i][1];
         hAtomZ[i] = atomPos[i][2];
     }
+    vector<vector<double>>().swap(atomPos);
+
+    // ---- Loops with b.n != 0: remove (vacancy) or duplicate (interstitial) the slab ----
+    //   Slabs are all selected on the perfect lattice. Vacancy slabs are deleted now,
+    //   before the displacement sum; interstitial copies are appended after it, at
+    //   their original site with displacement u(x) + side * b (see prismatic.hpp).
+    struct Copy { int atom; double shift[3]; };
+    vector<Copy> copies;
+    {
+        vector<char> removed(nbAtoms, 0);
+        double dVolume = 0.;
+        bool any = false;
+        for (int l = 0; l < nbLoops; l++) {
+            if (matterType(listLoop[l]) == MatterType::NONE) continue;
+            if (inputFile.getMatter(l) == "none") {
+                cout << "  Loop " << l+1 << ": b.n != 0 but Matter: none -> displacement only\n";
+                continue;
+            }
+            if (!any) { cout << "\n--- Prismatic loops: atoms added / removed ---\n"; any = true; }
+            const SlabResult sl = prismaticSlab(listLoop[l], planeSpacing[l],
+                                                hAtomX, hAtomY, hAtomZ, dx, dy, dz);
+            const int    ns    = (int)sl.atoms.size();
+            const double area  = listLoop[l].getNumberOfLoopons() * listLoop[l].getSurface();
+            const double nomin = nbAtoms / (dx * dy * dz) * area * sl.height;
+            // Interstitial: the kept atoms nearest the cut sit d/2 from the loopon plane,
+            // and the discrete loopon sum is only smooth there for a step <~ 0.7 * d/2
+            if (sl.type == MatterType::INTERSTITIAL && da > 0.35 * sl.spacing)
+                cerr << "WARNING: loop " << l+1 << " is interstitial and Loopon_size = " << da
+                     << " Ang > 0.35 d = " << 0.35 * sl.spacing << " Ang: the planes next to the"
+                     << " cut will be noisy; use Loopon_size <= " << 0.35 * sl.spacing << "\n";
+            if (sl.type == MatterType::VACANCY) {
+                for (int a : sl.atoms) removed[a] = 1;
+                dVolume -= area * sl.height;
+            } else {
+                for (int k = 0; k < ns; k++)
+                    copies.push_back({ sl.atoms[k], { sl.side[k]*sl.b[0], sl.side[k]*sl.b[1],
+                                                      sl.side[k]*sl.b[2] } });
+                dVolume += area * sl.height;
+            }
+            cout << "  Loop " << l+1 << ": " << matterName(sl.type) << ", |b.n| = " << sl.height
+                 << " Ang = " << sl.planes << " plane(s) of d = " << sl.spacing << " Ang, "
+                 << (sl.type == MatterType::VACANCY ? "removed " : "added ") << ns
+                 << " atoms (rho A |b.n| = " << setprecision(1) << fixed << nomin << ")\n"
+                 << defaultfloat << setprecision(6);
+        }
+        if (any) {
+            // Drop removed atoms; renumber the copy sources (a copy of a removed atom is dropped)
+            vector<int> newIndex(nbAtoms, -1);
+            int k = 0;
+            for (int a = 0; a < nbAtoms; a++) {
+                if (removed[a]) continue;
+                newIndex[a] = k;
+                hAtomX[k] = hAtomX[a];  hAtomY[k] = hAtomY[a];  hAtomZ[k] = hAtomZ[a];
+                k++;
+            }
+            hAtomX.resize(k);  hAtomY.resize(k);  hAtomZ.resize(k);
+            vector<Copy> kept;
+            for (Copy c : copies)
+                if (newIndex[c.atom] >= 0) { c.atom = newIndex[c.atom]; kept.push_back(c); }
+            copies.swap(kept);
+            cout << "  Atoms: " << nbAtoms << " -> " << k + (int)copies.size()
+                 << "  (" << nbAtoms - k << " removed, " << copies.size() << " added)\n"
+                 << "  Box not deformed: expected volume change " << dVolume << " Ang^3 ("
+                 << 100. * dVolume / (dx * dy * dz) << " %), relax it with NPT / box/relax\n\n";
+            nbAtoms = k;
+        }
+    }
+    lap("Prismatic slabs (CPU)");
 
     // ---- Loopon positions (SoA) and loop physics for the backend ----
     //   b = getBurgers() (|b| per component), m, n normalised, dS = getSurface()
@@ -311,6 +406,17 @@ int main(int argc, char** argv)
         timing.push_back({"Kroupa kernels (CPU)", bt.kernels});
     }
     tPhase = Clock::now();
+
+    // ---- Interstitial copies: same site, displacement u(x) + side * b ----
+    for (const Copy& c : copies) {
+        hAtomX.push_back(hAtomX[c.atom]);
+        hAtomY.push_back(hAtomY[c.atom]);
+        hAtomZ.push_back(hAtomZ[c.atom]);
+        hDisplX.push_back(hDisplX[c.atom] + c.shift[0]);
+        hDisplY.push_back(hDisplY[c.atom] + c.shift[1]);
+        hDisplZ.push_back(hDisplZ[c.atom] + c.shift[2]);
+    }
+    nbAtoms += (int)copies.size();
 
     // ---- Build loop descriptors for box deformation ----
     //

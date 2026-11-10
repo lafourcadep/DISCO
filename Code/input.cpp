@@ -102,12 +102,14 @@ void input::readInputFile()
       double radius = 0., half_m = 0., half_p = 0., corner_r = 0.;
       vector<double> side;   // empty = rectangle sides along m and m x n; parallelogram Dir_1
       vector<double> dir2;   // parallelogram Dir_2
+      int sides = 0;         // regular polygon; 0 = explicit Vertices
+      vector< vector<double> > vertices;
       if (shape == "circular") {
-        checkKeys(dl, {"Shape", "Radius", "Center", "m", "n"}, where);
+        checkKeys(dl, {"Shape", "Radius", "Center", "m", "n", "Matter"}, where);
         radius = readPositive(dl, "Radius", where);
         cout << "    Radius         = " << radius << " Ang\n";
       } else if (shape == "rectangular") {
-        checkKeys(dl, {"Shape", "Half_m", "Half_p", "Corner_radius", "Side", "Center", "m", "n"}, where);
+        checkKeys(dl, {"Shape", "Half_m", "Half_p", "Corner_radius", "Side", "Center", "m", "n", "Matter"}, where);
         half_m   = readPositive(dl, "Half_m", where);
         half_p   = readPositive(dl, "Half_p", where);
         corner_r = require(dl, "Corner_radius", where).as<double>();  // 0 = sharp corners
@@ -119,7 +121,7 @@ void input::readInputFile()
           cout << "    Side           = " << side[0] << " " << side[1] << " " << side[2] << "\n";
         }
       } else if (shape == "parallelogram") {
-        checkKeys(dl, {"Shape", "Half_1", "Half_2", "Dir_1", "Dir_2", "Center", "m", "n"}, where);
+        checkKeys(dl, {"Shape", "Half_1", "Half_2", "Dir_1", "Dir_2", "Center", "m", "n", "Matter"}, where);
         half_m = readPositive(dl, "Half_1", where);
         half_p = readPositive(dl, "Half_2", where);
         side   = readVec3(dl, "Dir_1", where);
@@ -128,8 +130,46 @@ void input::readInputFile()
              << side[0] << " " << side[1] << " " << side[2] << "\n"
              << "    Half_2         = " << half_p << " Ang  along Dir_2 = "
              << dir2[0] << " " << dir2[1] << " " << dir2[2] << "\n";
+      } else if (shape == "polygon" || shape == "hexagonal") {
+        // Regular polygon (Sides, Circumradius, optional Vertex_dir) or, for
+        // "polygon" only, an explicit convex vertex list (Vertices)
+        if (shape == "hexagonal")
+          checkKeys(dl, {"Shape", "Circumradius", "Vertex_dir", "Corner_radius",
+                         "Center", "m", "n", "Matter"}, where);
+        else
+          checkKeys(dl, {"Shape", "Sides", "Circumradius", "Vertex_dir", "Vertices", "Corner_radius",
+                         "Center", "m", "n", "Matter"}, where);
+        if (dl["Vertices"]) {
+          if (dl["Sides"] || dl["Circumradius"] || dl["Vertex_dir"])
+            fail(where, "'Vertices' excludes 'Sides', 'Circumradius' and 'Vertex_dir'");
+          const YAML::Node vl = dl["Vertices"];
+          if (!vl.IsSequence() || vl.size() < 3)
+            fail(where, "'Vertices' must be a list of at least 3 points [x, y, z]");
+          for (size_t k = 0; k < vl.size(); k++) {
+            if (!vl[k].IsSequence() || vl[k].size() != 3)
+              fail(where, "'Vertices' must be a list of at least 3 points [x, y, z]");
+            vertices.push_back({ vl[k][0].as<double>(), vl[k][1].as<double>(), vl[k][2].as<double>() });
+          }
+          cout << "    Vertices       = " << vertices.size() << " (Ang, from the centre)\n";
+        } else {
+          sides = (shape == "hexagonal") ? 6 : require(dl, "Sides", where).as<int>();
+          if (sides < 3) fail(where, "'Sides' must be >= 3");
+          radius = readPositive(dl, "Circumradius", where);
+          cout << "    Sides          = " << sides << "\n"
+               << "    Circumradius   = " << radius << " Ang\n";
+          if (dl["Vertex_dir"]) {   // optional: centre -> first vertex (default grid axis)
+            side = readVec3(dl, "Vertex_dir", where);
+            cout << "    Vertex_dir     = " << side[0] << " " << side[1] << " " << side[2] << "\n";
+          }
+        }
+        if (dl["Corner_radius"]) {
+          corner_r = dl["Corner_radius"].as<double>();
+          if (corner_r < 0.) fail(where, "'Corner_radius' must be >= 0");
+        }
+        cout << "    Corner_radius  = " << corner_r << " Ang\n";
       } else {
-        fail(where, "unknown shape '" + shape + "' (circular | rectangular | parallelogram)");
+        fail(where, "unknown shape '" + shape
+                    + "' (circular | rectangular | parallelogram | polygon | hexagonal)");
       }
 
       const vector<double> center = readVec3(dl, "Center", where);
@@ -140,7 +180,8 @@ void input::readInputFile()
            << "    n              = " << n[0] << " " << n[1] << " " << n[2] << "\n";
       // In-plane directions: Side (rectangular), Dir_1 / Dir_2 (parallelogram)
       const double ln = sqrt(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
-      const string k1 = (shape == "parallelogram") ? "Dir_1" : "Side";
+      const string k1 = (shape == "parallelogram") ? "Dir_1"
+                      : (shape == "polygon" || shape == "hexagonal") ? "Vertex_dir" : "Side";
       for (const auto& kv : { make_pair(k1, side), make_pair(string("Dir_2"), dir2) }) {
         const vector<double>& v = kv.second;
         if (v.empty()) continue;
@@ -149,6 +190,10 @@ void input::readInputFile()
         if (fabs(v[0]*n[0] + v[1]*n[1] + v[2]*n[2]) > 1e-9 * lv * ln)
           fail(where, "'" + kv.first + "' must lie in the loop plane (" + kv.first + " . n = 0)");
       }
+      // Vertices: in-plane offsets from the centre (Angstrom), tolerance 1e-6 Ang
+      for (const auto& v : vertices)
+        if (fabs(v[0]*n[0] + v[1]*n[1] + v[2]*n[2]) > 1e-6 * ln)
+          fail(where, "every point of 'Vertices' must lie in the loop plane (vertex . n = 0)");
       if (!dir2.empty()) {
         const double c[3] = { side[1]*dir2[2] - side[2]*dir2[1],
                               side[2]*dir2[0] - side[0]*dir2[2],
@@ -159,7 +204,17 @@ void input::readInputFile()
           fail(where, "'Dir_1' and 'Dir_2' are parallel");
       }
 
+      // Matter: auto (default) adds or removes the atoms of a loop with b.n != 0;
+      // none applies the displacement field only (no atom added or removed)
+      string matter = "auto";
+      if (dl["Matter"]) matter = dl["Matter"].as<string>();
+      if (matter != "auto" && matter != "none")
+        fail(where, "'Matter' must be auto or none");
+      if (fabs(m[0]*n[0] + m[1]*n[1] + m[2]*n[2]) > 1e-9)
+        cout << "    Matter         = " << matter << "  (b.n != 0)\n";
+
       _listCenters.push_back(center);
+      _listMatter.push_back(matter);
       _listM.push_back(m);
       _listN.push_back(n);
       _listShapes.push_back(shape);
@@ -169,6 +224,8 @@ void input::readInputFile()
       _listCornerRadius.push_back(corner_r);
       _listSide.push_back(side);
       _listDir2.push_back(dir2);
+      _listSides.push_back(sides);
+      _listVertices.push_back(vertices);
     }
   } catch (const YAML::Exception& e) {
     cerr << "ERROR in input file " << _name << ": " << e.what() << "\n";
@@ -201,5 +258,8 @@ double         input::getCornerRadius(int d) { return _listCornerRadius[d]; }
 vector<double> input::getSide(int d)         { return _listSide[d]; }
 vector<double> input::getDir1(int d)         { return _listSide[d]; }
 vector<double> input::getDir2(int d)         { return _listDir2[d]; }
+string         input::getMatter(int d)       { return _listMatter[d]; }
+int            input::getSides(int d)        { return _listSides[d]; }
+vector< vector<double> > input::getVertices(int d) { return _listVertices[d]; }
 
 #endif

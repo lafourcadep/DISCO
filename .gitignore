@@ -24,3 +24,4 @@ log.lammps
 # Documentation build
 site/
 .cache/
+Code/tests/test_prismatic

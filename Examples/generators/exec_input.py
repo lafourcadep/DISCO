@@ -141,9 +141,21 @@ def mid_plane_offset(s, n, a0, cells):
 
 def in_plane_axes(m, n, side=None):
     """exec_cuda's in-plane loopon-grid axes (loop.cpp): u-hat, the Half_m axis, and
-    v-hat = u-hat x n-hat, the Half_p axis. u is m (screw sides) unless a rectangular
-    loop gives Side."""
-    uh, nh = _unit(m if side is None else side), _unit(n)
+    v-hat = u-hat x n-hat, the Half_p axis. Without `side` (rectangle Side, polygon
+    Vertex_dir), u is m projected on the plane (m itself for a glide loop) or, for
+    m // n, n x e_k with e_k the Cartesian axis of smallest |n_k| (defaultAxes)."""
+    nh = _unit(n)
+    if side is None:
+        mh = _unit(m)
+        uu = mh - (mh @ nh) * nh
+        if np.linalg.norm(uu) < 1e-6:
+            e = np.zeros(3)
+            e[int(np.argmin(np.abs(nh)))] = 1.
+            uu = np.cross(nh, e)
+    else:
+        uu = np.asarray(side, float)
+        uu = uu - (uu @ nh) * nh
+    uh = _unit(uu)
     return uh, np.cross(uh, nh), nh
 
 
@@ -152,20 +164,57 @@ def loop_axes(loop):
     unit vectors of Dir_1, Dir_2 (oblique grid axes) and n-hat."""
     if loop["shape"] == "parallelogram":
         return _unit(loop["dir_1"]), _unit(loop["dir_2"]), _unit(loop["n"])
+    if loop["shape"] in ("hexagonal", "polygon"):
+        return in_plane_axes(loop["m"], loop["n"], loop.get("vertex_dir"))
     return in_plane_axes(loop["m"], loop["n"], loop.get("side"))
+
+
+def polygon_2d(loop):
+    """Regular polygon of a 'hexagonal' / 'polygon' loop in the grid basis (u, v), as
+    loop.cpp builds it: vertices P (counter-clockwise), inward unit side normals,
+    corner radius clamped to its maximum, inner polygon Q offset inward by it."""
+    ns = 6 if loop["shape"] == "hexagonal" else int(loop["sides"])
+    R = loop["circumradius"]
+    th = 2 * np.pi * np.arange(ns) / ns
+    P = R * np.stack([np.cos(th), np.sin(th)], 1)
+    d = np.roll(P, -1, 0) - P
+    L = np.linalg.norm(d, axis=1)
+    d /= L[:, None]
+    nrm = np.stack([-d[:, 1], d[:, 0]], 1)
+    cot_half = np.tan(np.pi / ns)                 # cot(interior angle / 2)
+    rc = min(loop.get("corner_radius") or 0., float(np.min(L / (2 * cot_half))))
+    n1, n2 = np.roll(nrm, 1, 0), nrm
+    Q = P + rc * (n1 + n2) / (1 + np.sum(n1 * n2, 1))[:, None]
+    return P, nrm, rc, Q
 
 
 def _halves(loop):
     """Grid half-extents (along u, along v) of a non-circular loop."""
     if loop["shape"] == "parallelogram":
         return loop["half_1"], loop["half_2"]
+    if loop["shape"] in ("hexagonal", "polygon"):
+        P = polygon_2d(loop)[0]
+        return float(np.max(np.abs(P[:, 0]))), float(np.max(np.abs(P[:, 1])))
     return loop["half_m"], loop["half_p"]
 
 
-def inside_2d(loop, u, v, eps=1e-9):
-    """Point (u, v) inside the loop contour, with loop.cpp's boundary rules."""
+def inside_2d(loop, u, v, eps=1e-9, poly=None):
+    """Point (u, v) inside the loop contour, with loop.cpp's boundary rules.
+    poly: polygon_2d(loop), precomputed for repeated calls."""
     if loop["shape"] == "circular":
         return math.hypot(u, v) < loop["radius"] - eps
+    if loop["shape"] in ("hexagonal", "polygon"):
+        P, nrm, rc, Q = poly if poly is not None else polygon_2d(loop)
+        x = np.array([u, v])
+        if np.all(np.sum(nrm * (x - P), 1) >= rc - eps):
+            return True
+        if rc <= 0.:
+            return False
+        e = np.roll(Q, -1, 0) - Q
+        l2 = np.sum(e * e, 1)
+        t = np.clip(np.where(l2 > 0, np.sum((x - Q) * e, 1) / np.where(l2 > 0, l2, 1), 0.), 0., 1.)
+        w = x - Q - t[:, None] * e
+        return float(np.min(np.sum(w * w, 1))) <= rc * rc + eps
     if loop["shape"] == "parallelogram":        # u, v: oblique coordinates
         return abs(u) <= loop["half_1"] + eps and abs(v) <= loop["half_2"] + eps
     rc = loop["corner_radius"]
@@ -178,7 +227,8 @@ def count_loopons(loop, da):
     """Number of loopons exec_cuda will put in this loop (generateLoopons)."""
     ext_m, ext_p = (loop["radius"],) * 2 if loop["shape"] == "circular" else _halves(loop)
     km, kp = math.ceil(ext_m / da) + 1, math.ceil(ext_p / da) + 1
-    return sum(inside_2d(loop, i * da, j * da)
+    poly = polygon_2d(loop) if loop["shape"] in ("hexagonal", "polygon") else None
+    return sum(inside_2d(loop, i * da, j * da, poly=poly)
                for i in range(-km, km + 1) for j in range(-kp, kp + 1))
 
 
@@ -189,6 +239,9 @@ def loop_half_extent(loop):
         return loop["radius"] * np.hypot(mh, ph)
     if loop["shape"] == "parallelogram":
         return loop["half_1"] * np.abs(mh) + loop["half_2"] * np.abs(ph)
+    if loop["shape"] in ("hexagonal", "polygon"):
+        P = polygon_2d(loop)[0]
+        return np.max(np.abs(P[:, :1] * mh + P[:, 1:] * ph), axis=0)
     rc = min(loop["corner_radius"], loop["half_m"], loop["half_p"])
     return (loop["half_m"] - rc) * np.abs(mh) + (loop["half_p"] - rc) * np.abs(ph) + rc * np.hypot(mh, ph)
 
@@ -286,6 +339,14 @@ def write_yaml(path, general, loops, header_lines=()):
         lines.append(f"  - Shape: {l['shape']}")
         if l["shape"] == "circular":
             lines.append(f"    Radius: {_g(l['radius'])}")
+        elif l["shape"] in ("hexagonal", "polygon"):
+            if l["shape"] == "polygon":
+                lines.append(f"    Sides: {int(l['sides'])}")
+            lines.append(f"    Circumradius: {_g(l['circumradius'])}")
+            if l.get("vertex_dir") is not None:
+                lines.append(f"    Vertex_dir: [{', '.join(str(int(x)) for x in l['vertex_dir'])}]")
+            if l.get("corner_radius"):
+                lines.append(f"    Corner_radius: {_g(l['corner_radius'])}")
         elif l["shape"] == "parallelogram":
             lines += [f"    Half_1: {_g(l['half_1'])}", f"    Half_2: {_g(l['half_2'])}",
                       f"    Dir_1: [{', '.join(str(int(x)) for x in l['dir_1'])}]",
@@ -322,6 +383,11 @@ def loop_record(bcc, loop, general):
     rec = dict(shape=loop["shape"])
     if loop["shape"] == "circular":
         rec["radius"] = loop["radius"]
+    elif loop["shape"] in ("hexagonal", "polygon"):
+        rec.update(sides=6 if loop["shape"] == "hexagonal" else int(loop["sides"]),
+                   circumradius=loop["circumradius"], corner_radius=polygon_2d(loop)[2])
+        if loop.get("vertex_dir") is not None:
+            rec["vertex_dir"] = list(loop["vertex_dir"])
     elif loop["shape"] == "parallelogram":
         rec.update(half_1=loop["half_1"], half_2=loop["half_2"], dir_1=list(loop["dir_1"]),
                    dir_2=list(loop["dir_2"]))

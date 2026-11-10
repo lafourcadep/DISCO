@@ -66,7 +66,36 @@ python3 make_single_loop.py --shape parallelogram --family 110 --outdir db/  # t
 See [Quadrupoles](quadrupoles.md#make_quadrupolepy-any-pair-of-110-planes), including
 [several quadrupoles in one sample](quadrupoles.md#several-quadrupoles-in-one-sample-tiles).
 
+## `make_prismatic_loops.py`: prismatic loops with added or removed atoms
+
+Use this for prismatic loops that must survive thermal MD. Each loop has b out of its plane
+(b · n ≠ 0), and exec_cuda adds (interstitial) or removes (vacancy) the slab of atoms inside it
+(see [Input file](input.md#prismatic-and-mixed-loops-b-n-0)).
+
+- `--habit 111`: pure-edge loop, n ∥ b. `--habit 110`: mixed loop on a {110} plane at 35.3° from b.
+- `--type interstitial | vacancy | mixed`.
+- With several loops (`--count`), loops of opposite type and the same b are never placed on the
+  same glide prism, because they would glide together and annihilate.
+- `--shape circular | hexagonal`. `--radius` is the radius, or the hexagon circumradius.
+  `--corner-radius` rounds the hexagon corners. `--vertex-dir` sets the direction of the first
+  vertex, which must lie in the plane of every loop, so give `--b` with it.
+- `Loopon_size` defaults to 0.33 d.
+
+```bash
+python3 make_prismatic_loops.py                                     # 1 interstitial loop, R = 20 Å
+python3 make_prismatic_loops.py --count 6 --type mixed --radius 15 --cells 50 --seed 2
+python3 make_prismatic_loops.py --b 1 1 1 --type vacancy --habit 110 -o vac110.yaml
+python3 make_prismatic_loops.py --shape hexagonal --radius 22 --corner-radius 2 -o hex.yaml
+python3 make_prismatic_loops.py --shape hexagonal --b 1 1 1 --vertex-dir 1 1 -2 -o hex110.yaml
+```
+
 ## Prismatic dipoles
+
+!!! warning "Not stable at finite temperature"
+    These dipoles are built from shear loops only, so no atom is added or removed. The two loops of
+    opposite sign lie on the same glide prism, and they attract each other. At finite temperature
+    they glide together and annihilate, even without stress. For stable prismatic loops use
+    `make_prismatic_loops.py`.
 
 `make_prismatic_dipole.py` and `make_hexagonal_prismatic_dipole.py` build a prismatic dipole from
 shear loops:

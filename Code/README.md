@@ -10,6 +10,7 @@ Sources of `exec_cuda` (GPU + CPU) and `exec_cpu` (CPU only).
 | `input.hpp/.cpp` | YAML input parser |
 | `loop.hpp/.cpp` | Loop geometry: loopon grid, Burgers vector, mid-plane snap |
 | `loop_deform.hpp/.cpp` | Box deformation from the plastic distortion |
+| `prismatic.hpp/.cpp` | Atoms added / removed for loops with b·n ≠ 0 (interstitial / vacancy) |
 | `tests/` | Unit tests (`make test`) |
 | `generate_quadrupole.py` | Quadrupole input generator |
 | `analysis_dxa.py` | OVITO DXA on LAMMPS dumps (`.ca` / `.vtk` output) |

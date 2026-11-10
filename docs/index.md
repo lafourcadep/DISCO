@@ -16,8 +16,9 @@ The sum runs on a GPU (CUDA) or on the cores of a CPU (OpenMP); both backends gi
 ## What it does
 
 - BCC lattice of `Nx × Ny × Nz` cubic cells, any lattice parameter.
-- Any number of loops: circles, rectangles (optionally rounded, optionally rotated in their plane)
-  and parallelograms, on any plane `n` with Burgers vector `b = a0/2 m`.
+- Any number of loops: circles, rectangles (optionally rounded, optionally rotated in their plane),
+  parallelograms and convex polygons such as hexagons (optionally rounded), on any plane `n` with
+  Burgers vector `b = a0/2 m`.
 - Loop centres are moved onto the mid-plane between two atomic planes of the loop plane family.
 - Output as extended XYZ (OVITO) or LAMMPS data file.
 - Python generators for common configurations: single loops on all 48 BCC slip systems,

@@ -74,3 +74,8 @@ make test
 `tests/test_snap.cpp` checks by brute force, over the generated BCC sites, that the loop centre
 is moved exactly halfway between two atomic planes. It covers {110}, {112}, {123} and {100}
 normals with even and odd `Nx`, `Ny`, `Nz`.
+
+`tests/test_prismatic.cpp` checks loops with b·n ≠ 0 (see [Input file](input.md#prismatic-and-mixed-loops-b-n-0)):
+the Kroupa jump across the cut is −b·n̂, so m·n > 0 is a vacancy loop and m·n < 0 an interstitial one;
+the slab holds |b·n̂|/d atomic planes, and its atom count is ρ A |b·n̂|. The test covers ½⟨111⟩ on (111) and on {110},
+and a⟨100⟩ on (100).

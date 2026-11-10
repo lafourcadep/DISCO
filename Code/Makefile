@@ -62,8 +62,8 @@ endif
 CXX_FLAGS  = -O3 -march=native -std=c++14 -fopenmp
 NVCC_FLAGS = -O3 -arch=$(GPU_ARCH) -std=c++14 -DWITH_CUDA -Xcompiler -fopenmp,-O3,-march=native
 
-SRC_HOST  = main.cpp input.cpp loop.cpp loop_deform.cpp backend_cpu.cpp
-HEADERS   = input.hpp loop.hpp loop_deform.hpp backend.hpp kroupa.hpp
+SRC_HOST  = main.cpp input.cpp loop.cpp loop_deform.cpp prismatic.cpp backend_cpu.cpp
+HEADERS   = input.hpp loop.hpp loop_deform.hpp prismatic.hpp backend.hpp kroupa.hpp
 
 # ------------------------------------------------------------------------------
 exec_cuda: $(SRC_HOST) backend_cuda.cu $(HEADERS)
@@ -91,8 +91,14 @@ SNAP_BIN  = tests/test_snap
 $(SNAP_BIN): tests/test_snap.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp
 	$(CXX) -O2 -std=c++14 -I$(PARENT) -o $(SNAP_BIN) tests/test_snap.cpp $(PARENT)/loop.cpp
 
-test: $(TEST_BIN) $(SNAP_BIN)
+PRISM_BIN = tests/test_prismatic
+
+$(PRISM_BIN): tests/test_prismatic.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp $(PARENT)/prismatic.cpp $(PARENT)/prismatic.hpp $(PARENT)/kroupa.hpp
+	$(CXX) -O2 -std=c++14 -I$(PARENT) -o $(PRISM_BIN) tests/test_prismatic.cpp $(PARENT)/loop.cpp $(PARENT)/prismatic.cpp
+
+test: $(TEST_BIN) $(SNAP_BIN) $(PRISM_BIN)
 	./$(TEST_BIN)
 	./$(SNAP_BIN)
+	./$(PRISM_BIN)
 
 .PHONY: all clean run test

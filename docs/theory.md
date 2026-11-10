@@ -4,10 +4,10 @@
 
 A dislocation loop of Burgers vector **b** bounding a planar surface S produces a displacement field
 that is the sum of the fields of infinitesimal loops tiling S. DISCO tiles each loop surface with a
-regular grid of step `Loopon_size` centred on the loop centre. The grid is square for circles
-and rectangles and oblique for parallelograms. Every grid node inside the loop contour is a
+regular grid of step `Loopon_size` centred on the loop centre. The grid is square for circles,
+rectangles and polygons, and oblique for parallelograms. Every grid node inside the loop contour is a
 *loopon*: an infinitesimal loop that carries the area dS of one grid cell. For a circle, nodes
-exactly on the contour are excluded; for a rectangle, they are included.
+exactly on the contour are excluded; for a rectangle or a polygon, they are included.
 
 ![Loop tiled by loopons](assets/kroupa_loopons.png){ width="320" align="right" }
 
@@ -39,6 +39,18 @@ The cost is therefore proportional to atoms × total loopons × 27 (see [CPU or 
 !!! note "Loopon size"
     The loopon step sets how finely the loop contour is resolved. The default used by the
     generators, 0.4 a0, is well below the interatomic distance.
+
+## Prismatic loops: adding or removing matter
+
+For a loop with b · n ≠ 0, the Volterra cut opens a gap or makes its lips overlap by |b · n̂|.
+The displacement field cannot create or destroy matter. Without atoms added or removed, the
+configuration is only a strained perfect crystal, and it relaxes back.
+`Code/prismatic.cpp` follows Atomsk's procedure (`opt_disloc.f90`, loop case):
+it takes the atoms in a slab of thickness |b · n̂| inside the contour, then deletes them
+(vacancy, m · n > 0) or duplicates them (interstitial, m · n < 0). Each copy gets the displacement
+u(x) + sign(s) **b**, so it lands on the other side of the cut. Since **b** is a lattice
+translation, originals and copies fill the gap with perfect crystal.
+See [Input file](input.md#prismatic-and-mixed-loops-b-n-0).
 
 ## Loop placement
 
