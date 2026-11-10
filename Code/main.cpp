@@ -4,7 +4,7 @@
 // Ref: F. Kroupa, Dislocation dipoles and dislocation loops,
 //      J. Phys. Colloques 27 (1966) C3-154.
 //
-// Builds the BCC supercell and the loopons of every dislocation loop, sums the
+// Builds the BCC or FCC supercell and the loopons of every dislocation loop, sums the
 // Kroupa displacement over atoms x loops x 27 periodic images x loopons with
 // one of the backends of backend.hpp, then wraps, deforms and writes the atoms.
 //   exec_cuda [--cpu] <parameters_file>   GPU (CUDA); --cpu, or no CUDA device,
@@ -31,23 +31,6 @@
 
 using namespace std;
 
-// -----------------------------------------------------------------------------
-// BCC lattice generator — positions centered at origin (same as main.cc)
-// -----------------------------------------------------------------------------
-static vector<vector<double>> generateBCC(int nx, int ny, int nz, double a0)
-{
-    vector<vector<double>> atoms;
-    atoms.reserve(2 * nx * ny * nz);
-    const double hx = nx * a0 / 2., hy = ny * a0 / 2., hz = nz * a0 / 2.;
-    for (int i = 0; i < nx; i++)
-        for (int j = 0; j < ny; j++)
-            for (int k = 0; k < nz; k++) {
-                atoms.push_back({ i*a0 - hx,             j*a0 - hy,             k*a0 - hz             });
-                atoms.push_back({ i*a0 + 0.5*a0 - hx,   j*a0 + 0.5*a0 - hy,   k*a0 + 0.5*a0 - hz   });
-            }
-    return atoms;
-}
-
 // =============================================================================
 // LAMMPS DATA FILE WRITER
 //
@@ -70,7 +53,9 @@ static void writeLAMMPS(
     const vector<double>&  posX,
     const vector<double>&  posY,
     const vector<double>&  posZ,
-    int                    nbAtoms)
+    int                    nbAtoms,
+    const string&          element,
+    double                 mass)
 {
     // ------------------------------------------------------------------
     // 1. Gram-Schmidt: extract LAMMPS box parameters from box vectors
@@ -125,7 +110,7 @@ static void writeLAMMPS(
 
     // Masses
     out << "\nMasses\n\n";
-    out << "1 180.9479  # Ta\n";
+    out << "1 " << setprecision(4) << mass << setprecision(8) << "  # " << element << "\n";
 
     // Atoms
     out << "\nAtoms  # atomic\n\n";
@@ -218,6 +203,8 @@ int main(int argc, char** argv)
     const double      a0         = inputFile.getA0();
     const vector<int> dim        = inputFile.getNumberOfCells();
     const int         nx=dim[0], ny=dim[1], nz=dim[2];
+    const Lattice     lattice    = inputFile.getLattice();
+    const string      element    = inputFile.getElement();
     const int         nbLoops    = inputFile.getNumberOfLoops();
     const string      outName    = inputFile.getOutputFileName();
     const string      outFormat  = inputFile.getOutputFormat();
@@ -239,13 +226,13 @@ int main(int argc, char** argv)
     const vector<double> compress = {1., 1., 1.};
 
     cout << "\n--- Supercell ---\n";
-    cout << "  BCC: " << nx << " x " << ny << " x " << nz
+    cout << "  " << latticeName(lattice) << ": " << nx << " x " << ny << " x " << nz
          << "  (a0 = " << a0 << " Ang)  |  Atoms: " << nbAtoms << "\n";
     cout << "  Box: " << dx << " x " << dy << " x " << dz << " Ang\n\n";
 
-    // ---- Generate BCC lattice ----
-    vector<vector<double>> atomPos = generateBCC(nx, ny, nz, a0);
-    lap("BCC lattice (CPU)");
+    // ---- Generate the lattice ----
+    vector<vector<double>> atomPos = generateLattice(lattice, nx, ny, nz, a0);
+    lap(string(latticeName(lattice)) + " lattice (CPU)");
 
     // ---- Build dislocation loops (host — only to generate loopon positions) ----
     vector<loop> listLoop;
@@ -254,8 +241,15 @@ int main(int argc, char** argv)
     for (int i = 0; i < nbLoops; i++) {
         double d;
         const vector<double> c = snapToMidPlane(inputFile.getCenter(i), inputFile.getN(i),
-                                                a0, nx, ny, nz, d);
+                                                a0, nx, ny, nz, d, lattice);
         const string shape = inputFile.getShape(i);
+        if (!isLatticeTranslation(lattice, inputFile.getM(i))) {
+            const vector<double> m = inputFile.getM(i);
+            cerr << "WARNING: loop " << i+1 << ": b = a0/2 [" << m[0] << " " << m[1] << " " << m[2]
+                 << "] is not a translation of the " << latticeName(lattice) << " lattice"
+                 << (lattice == Lattice::FCC ? " (perfect FCC: m = <110>)" : " (perfect BCC: m = <111>)")
+                 << ": the cut surface leaves a fault\n";
+        }
         const bool isPolygon = (shape == "polygon" || shape == "hexagonal");
         vector< vector<double> > verts;
         if (isPolygon)
@@ -550,7 +544,7 @@ int main(int argc, char** argv)
             << "\" Properties=species:S:1:pos:R:3\n";
         out << fixed << setprecision(8);
         for (int k = 0; k < nbAtoms; k++)
-            out << "Ta " << finalX[k] << " " << finalY[k] << " " << finalZ[k] << "\n";
+            out << element << " " << finalX[k] << " " << finalY[k] << " " << finalZ[k] << "\n";
         out.close();
         cout << "Written " << outName << "\n";
     }
@@ -558,7 +552,7 @@ int main(int argc, char** argv)
     // ---- Write LAMMPS data file ----
     if (outFormat == "lammps" || outFormat == "both") {
         string lmpName = outName.substr(0, outName.size()-3) + "lmp";
-        writeLAMMPS(lmpName, Hprime, finalX, finalY, finalZ, nbAtoms);
+        writeLAMMPS(lmpName, Hprime, finalX, finalY, finalZ, nbAtoms, element, inputFile.getMass());
     }
 
     if (outFormat != "xyz" && outFormat != "lammps" && outFormat != "both" && outFormat != "none")

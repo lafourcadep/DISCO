@@ -11,6 +11,8 @@
 #include <set>
 #include <yaml-cpp/yaml.h>
 
+#include "lattice.hpp"
+
 class input {
 
 private:
@@ -18,6 +20,9 @@ private:
   int    _numberOfLoops;
   int    _nx, _ny, _nz;
   double _a0;
+  Lattice _lattice;           // host lattice: BCC (default) | FCC
+  std::string _element;       // species name written to the output files (default Ta)
+  double _mass;               // atomic mass in the LAMMPS data file (Dalton)
   double _looponSize;  // Loopon grid step, same for every loop (Angstrom); 0 if unused
   std::string _method;        // "line" (closed-form line integral, default) | "loopons" (Kroupa sum)
   double _segmentTolerance;   // line: max chord sagitta of curved contours (Angstrom)
@@ -46,9 +51,12 @@ public:
   void readInputFile();
 
   double              getA0();
+  Lattice             getLattice();
+  std::string         getElement();
+  double              getMass();
   std::vector<int>    getNumberOfCells();
   int                 getNumberOfLoops();
-  int                 getNumberOfAtoms();   // perfect BCC lattice, before any loop
+  int                 getNumberOfAtoms();   // perfect lattice, before any loop
   std::string         getOutputFileName();
   std::string         getOutputFormat();
   double              getLooponSize();

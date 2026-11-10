@@ -30,6 +30,10 @@ with a message**, so a typo cannot silently fall back to a default.
 
 ```yaml
 general:
+  Lattice: <BCC|FCC>                     # optional, default BCC
+  Element: <symbol>                      # optional, default Ta: species name in the output files
+  Mass: <mass>                           # optional (Dalton), LAMMPS Masses; default: standard mass
+                                         #   of Element (common BCC / FCC metals), required otherwise
   a0: <lattice_parameter>                # Å
   Nx: <cells_x>                          # box = Nx × Ny × Nz cubic cells
   Ny: <cells_y>
@@ -69,6 +73,46 @@ dislocations:
 
 The Burgers vector is **b** = (a0/2) **m**, so |b| = a0 |m| / 2. The log prints the size of each loop
 in Å and in units of |b|.
+
+## Lattice
+
+| `Lattice` | Atoms per cubic cell | Perfect Burgers vectors (b = a0/2 m) | Typical glide plane |
+|---|---|---|---|
+| `BCC` (default) | 2 | m = ⟨111⟩ (½⟨111⟩), m = ⟨200⟩ (⟨100⟩) | {110}, {112}, {123} |
+| `FCC` | 4 | m = ⟨110⟩ (½⟨110⟩), m = ⟨200⟩ (⟨100⟩) | {111} |
+
+The program warns when b = (a0/2) m is not a translation of the lattice (for example m = ⟨111⟩ in
+FCC): the cut surface of such a loop leaves a fault and the atoms added or removed by a prismatic
+loop would not restore the perfect crystal. Only perfect dislocations are built; FCC loops dissociate
+into Shockley partials when the sample is relaxed (energy minimization or MD), as expected.
+
+Example (Cu, two glide loops on {111}):
+
+```yaml
+general:
+  Lattice: FCC
+  Element: Cu                # Mass 63.546 from the built-in table
+  a0: 3.615
+  Nx: 40
+  Ny: 40
+  Nz: 40
+dislocations:
+  - Shape: rectangular
+    Half_m: 30.0
+    Half_p: 22.0
+    Corner_radius: 0.4
+    Center: [-25, -25, 0]
+    m: [1, -1, 0]
+    n: [1, 1, 1]
+  - Shape: hexagonal
+    Circumradius: 20.0
+    Corner_radius: 2.0
+    Center: [25, 25, 10]
+    m: [1, 0, 1]
+    n: [1, 1, -1]
+```
+
+The Python generators (`Examples/generators/`) write BCC inputs only.
 
 ## Field method
 
@@ -184,10 +228,11 @@ The loop surface must lie halfway between two dense atomic planes of its (hkl) =
 The code moves the requested centre along n onto the nearest such mid-plane, without changing the
 in-plane position. It prints the shift and the plane spacing d:
 
-- d = a0/|n| if h + k + l is even;
-- d = a0/(2|n|) if h + k + l is odd.
+- BCC: d = a0/|n| if h + k + l is even, d = a0/(2|n|) if h + k + l is odd;
+- FCC: d = a0/|n| if h, k, l are all odd, d = a0/(2|n|) otherwise.
 
-This gives d = 2.335 Å for {110}, 1.348 Å for {112} and 0.883 Å for {123} (a0 = 3.3024 Å).
+This gives, in BCC, d = 2.335 Å for {110}, 1.348 Å for {112} and 0.883 Å for {123} (a0 = 3.3024 Å),
+and in FCC d = 2.087 Å for {111}, 1.278 Å for {110} and 1.808 Å for {100} (a0 = 3.615 Å).
 A centre exactly on an atomic plane goes to the mid-plane on the +n side.
 
 ## Example: one circular and one rounded-rectangle loop

@@ -1,6 +1,6 @@
 # DISCO
 
-**DISlocation COnfiguration generator.** DISCO builds atomistic BCC samples that contain
+**DISlocation COnfiguration generator.** DISCO builds atomistic BCC or FCC samples that contain
 dislocation loops, ready for molecular dynamics.
 
 The displacement of every atom is the isotropic elastic field of all loops, with periodic images.
@@ -17,7 +17,8 @@ CPU (OpenMP).
 
 ## What it does
 
-- BCC lattice of `Nx × Ny × Nz` cubic cells, any lattice parameter.
+- BCC or FCC lattice of `Nx × Ny × Nz` cubic cells, any lattice parameter and element
+  (see [Input file](input.md#lattice)).
 - Any number of loops: circles, rectangles (optionally rounded, optionally rotated in their plane),
   parallelograms and convex polygons such as hexagons (optionally rounded), on any plane `n` with
   Burgers vector `b = a0/2 m`.
@@ -25,7 +26,7 @@ CPU (OpenMP).
   loop are added or removed, so the loops survive thermal MD.
 - Loop centres are moved onto the mid-plane between two atomic planes of the loop plane family.
 - Output as extended XYZ (OVITO) or LAMMPS data file.
-- Python generators for common configurations: single loops on all 48 BCC slip systems,
+- Python generators (BCC) for common configurations: single loops on all 48 BCC slip systems,
   junction and annihilation quadrupoles (one, or many different ones in one sample),
   prismatic dipoles (one, or N at random positions), prismatic loops with added or removed atoms
   (circular or hexagonal), and large tiled samples with random positions. Each generated input comes with a JSON file holding the expected

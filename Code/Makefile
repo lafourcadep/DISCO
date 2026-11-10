@@ -67,7 +67,7 @@ CXX_FLAGS  = -O3 -march=native -std=c++14 -fopenmp
 NVCC_FLAGS = -O3 -arch=$(GPU_ARCH) -std=c++14 -DWITH_CUDA -Xcompiler -fopenmp,-O3,-march=native
 
 SRC_HOST  = main.cpp input.cpp loop.cpp loop_deform.cpp prismatic.cpp backend_cpu.cpp
-HEADERS   = input.hpp loop.hpp loop_deform.hpp prismatic.hpp backend.hpp kroupa.hpp barnett.hpp
+HEADERS   = input.hpp lattice.hpp loop.hpp loop_deform.hpp prismatic.hpp backend.hpp kroupa.hpp barnett.hpp
 
 # ------------------------------------------------------------------------------
 exec_cuda: $(SRC_HOST) backend_cuda.cu $(HEADERS)
@@ -102,7 +102,7 @@ $(TEST_BIN): $(TEST_SRC) $(PARENT)/loop_deform.cpp $(PARENT)/loop_deform.hpp
 
 SNAP_BIN  = tests/test_snap
 
-$(SNAP_BIN): tests/test_snap.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp
+$(SNAP_BIN): tests/test_snap.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp $(PARENT)/lattice.hpp
 	$(CXX) -O2 -std=c++14 -I$(PARENT) -o $(SNAP_BIN) tests/test_snap.cpp $(PARENT)/loop.cpp
 
 PRISM_BIN = tests/test_prismatic

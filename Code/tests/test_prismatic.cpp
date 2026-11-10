@@ -8,6 +8,8 @@
 //   3. Mixed loop (1/2[111] on (110)): one plane, same checks.
 //   4. Hexagonal loops (sharp and rounded corners): same checks; polygon geometry
 //      (square polygon == rectangle, exact contour area, corner-radius clamp).
+//   5. FCC lattice: prismatic 1/2[110] on (110) (2 planes), mixed 1/2[101] on (111)
+//      (1 plane), a[001] on (001) (2 planes), same checks.
 //
 //   make test
 // =============================================================================
@@ -46,16 +48,18 @@ static double jumpAcrossCut(const loop& lp, double h)
     return un[0] - un[1];
 }
 
-static vector<double> bccX, bccY, bccZ;
-static void buildBCC(int N)
+// sites of the current lattice (generateLattice), atom density rho
+static vector<double> latX, latY, latZ;
+static Lattice lat = Lattice::BCC;
+static double rho = 0.;
+static void buildLattice(Lattice l, int N)
 {
-    const double h = N * A0 / 2.;
-    for (int i = 0; i < N; i++) for (int j = 0; j < N; j++) for (int k = 0; k < N; k++)
-        for (double f : { 0.0, 0.5 }) {
-            bccX.push_back(i*A0 + f*A0 - h);
-            bccY.push_back(j*A0 + f*A0 - h);
-            bccZ.push_back(k*A0 + f*A0 - h);
-        }
+    lat = l;
+    rho = atomsPerCell(l) / (A0*A0*A0);
+    latX.clear(); latY.clear(); latZ.clear();
+    for (const auto& p : generateLattice(l, N, N, N, A0)) {
+        latX.push_back(p[0]); latY.push_back(p[1]); latZ.push_back(p[2]);
+    }
 }
 
 static void checkSlab(loop& lp, double d, int N, MatterType expect, const char* label);
@@ -63,7 +67,7 @@ static void checkSlab(loop& lp, double d, int N, MatterType expect, const char* 
 static void checkLoop(vector<double> m, vector<double> n, double radius, int N, MatterType expect)
 {
     double d;
-    const vector<double> c = snapToMidPlane({ 1.1, -0.7, 0.4 }, n, A0, N, N, N, d);
+    const vector<double> c = snapToMidPlane({ 1.1, -0.7, 0.4 }, n, A0, N, N, N, d, lat);
     loop lp(0.4, radius, c, m, n, A0, { 1., 1., 1. });
     checkSlab(lp, d, N, expect, "circle ");
 }
@@ -73,7 +77,7 @@ static void checkHexagon(vector<double> m, vector<double> n, double R, double rc
                          vector<double> vdir, int N, MatterType expect)
 {
     double d;
-    const vector<double> c = snapToMidPlane({ 1.1, -0.7, 0.4 }, n, A0, N, N, N, d);
+    const vector<double> c = snapToMidPlane({ 1.1, -0.7, 0.4 }, n, A0, N, N, N, d, lat);
     loop lp(0.4, regularPolygon(6, R, vdir, m, n), rc, c, m, n, A0, { 1., 1., 1. }, vdir);
     assert(lp.getShape() == LoopShape::POLYGON && lp.getNumberOfVertices() == 6);
     checkSlab(lp, d, N, expect, rc > 0. ? "hexagon (rounded) " : "hexagon ");
@@ -95,21 +99,21 @@ static void checkSlab(loop& lp, double d, int N, MatterType expect, const char* 
 
     // 2. slab
     const double L = N * A0;
-    const SlabResult sl = prismaticSlab(lp, d, bccX, bccY, bccZ, L, L, L);
+    const SlabResult sl = prismaticSlab(lp, d, latX, latY, latZ, L, L, L);
     assert(sl.type == expect);
     assert(sl.planes == (int)lround(fabs(bn) / d));
     const double area = lp.getNumberOfLoopons() * lp.getSurface();
-    const double nominal = 2. / (A0*A0*A0) * area * fabs(bn);
+    const double nominal = rho * area * fabs(bn);
     const double ns = (double)sl.atoms.size();
     assert(fabs(ns - nominal) < 0.15 * nominal);
     const double tLo = -floor(sl.planes / 2.), tHi = ceil(sl.planes / 2.);
     for (size_t k = 0; k < sl.atoms.size(); k++) {
         const int a = sl.atoms[k];
-        const double s = (bccX[a]-c[0])*nh[0] + (bccY[a]-c[1])*nh[1] + (bccZ[a]-c[2])*nh[2];
+        const double s = (latX[a]-c[0])*nh[0] + (latY[a]-c[1])*nh[1] + (latZ[a]-c[2])*nh[2];
         assert(s / d >= tLo - 1e-9 && s / d < tHi);
         assert((s > 0.) == (sl.side[k] > 0));
     }
-    cout << "  " << label << "m = (" << m0[0] << " " << m0[1] << " " << m0[2] << "), n = ("
+    cout << "  " << latticeName(lat) << " " << label << "m = (" << m0[0] << " " << m0[1] << " " << m0[2] << "), n = ("
          << n0[0] << " " << n0[1] << " " << n0[2] << "): " << matterName(sl.type) << ", jump " << J << " Ang (-b.n = "
          << -bn << "), " << sl.planes << " plane(s), " << sl.atoms.size() << " slab atoms (rho A |b.n| = "
          << nominal << ")\n";
@@ -171,7 +175,7 @@ static void checkPolygonGeometry()
 int main()
 {
     const int N = 24;
-    buildBCC(N);
+    buildLattice(Lattice::BCC, N);
     cout << "test_prismatic:\n";
     checkLoop({ 1, 1, 1 },   { 1, 1, 1 }, 18., N, MatterType::VACANCY);       // pure prismatic
     checkLoop({ -1, -1, -1 }, { 1, 1, 1 }, 18., N, MatterType::INTERSTITIAL);
@@ -182,6 +186,17 @@ int main()
     checkHexagon({ -1, -1, -1 }, { 1, 1, 1 }, 18., 0., { 1, -1, 0 }, N, MatterType::INTERSTITIAL);
     checkHexagon({ 1, 1, 1 },    { 1, 1, 1 }, 18., 3., { 1, -1, 0 }, N, MatterType::VACANCY);
     checkHexagon({ -1, -1, -1 }, { 1, 1, 1 }, 18., 3., {},           N, MatterType::INTERSTITIAL);
+    // FCC: perfect 1/2<110> and a<100> Burgers vectors
+    buildLattice(Lattice::FCC, N);
+    checkLoop({ 1, 1, 0 },   { 1, 1, 0 }, 18., N, MatterType::VACANCY);       // pure prismatic, 2 planes
+    checkLoop({ -1, -1, 0 }, { 1, 1, 0 }, 18., N, MatterType::INTERSTITIAL);
+    checkLoop({ 1, 0, 1 },   { 1, 1, 1 }, 18., N, MatterType::VACANCY);       // mixed, {111}: 1 plane
+    checkLoop({ -1, 0, -1 }, { 1, 1, 1 }, 18., N, MatterType::INTERSTITIAL);
+    checkLoop({ 0, 0, 2 },   { 0, 0, 1 }, 18., N, MatterType::VACANCY);       // a[001]: 2 planes
+    checkHexagon({ -1, -1, 0 }, { 1, 1, 0 }, 18., 3., {}, N, MatterType::INTERSTITIAL);
+    assert(!isLatticeTranslation(Lattice::FCC, { 1, 1, 1 }) && isLatticeTranslation(Lattice::FCC, { 1, -1, 0 }));
+    assert(!isLatticeTranslation(Lattice::BCC, { 1, 1, 0 }) && isLatticeTranslation(Lattice::BCC, { 1, -1, 1 }));
+    buildLattice(Lattice::BCC, N);
     checkPolygonGeometry();
     // Glide loop: no matter
     loop g(0.4, 10., { 0., 0., 0. }, { 1, 1, 1 }, { 1, -1, 0 }, A0, { 1., 1., 1. });

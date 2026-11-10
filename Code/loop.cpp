@@ -331,13 +331,16 @@ bool loop::contains(const double rel[3]) const
 
 // =============================================================================
 // snapToMidPlane
-// BCC sites of generateBCC(): o + a0*Z^3 and o + a0*(Z+1/2)^3, o = -a0*(nx,ny,nz)/2.
-// For coprime integers (h,k,l) their projections on n/|n| are
-//   s = o.n/|n| + (a0/|n|) * (Z  U  Z + (h+k+l)/2),
-// i.e. atomic planes with spacing d = a0/|n| (h+k+l even) or a0/(2|n|) (odd).
+// Sites of generateLattice() (lattice.hpp), o = -a0*(nx,ny,nz)/2. For coprime
+// integers (h,k,l) their projections on n/|n| are s = o.n/|n| + (a0/|n|) * S:
+//   BCC (o + a0*Z^3, o + a0*(Z+1/2)^3): S = Z U Z + (h+k+l)/2,
+//     spacing d = a0/|n| (h+k+l even) or a0/(2|n|) (odd);
+//   FCC (o + a0*Z^3 + face centres): S = Z U Z + (h+k)/2 U Z + (h+l)/2 U Z + (k+l)/2,
+//     spacing d = a0/|n| (h,k,l all odd) or a0/(2|n|) (mixed parity).
+// The corner sites o + a0*Z^3 lie on the planes in both cases.
 // =============================================================================
 vector<double> snapToMidPlane(const vector<double>& center, const vector<double>& n,
-                              double a0, int nx, int ny, int nz, double& spacing)
+                              double a0, int nx, int ny, int nz, double& spacing, Lattice lattice)
 {
     long h[3];
     for (int i = 0; i < 3; i++) {
@@ -357,7 +360,7 @@ vector<double> snapToMidPlane(const vector<double>& center, const vector<double>
 
     const double norm = sqrt(double(h[0]*h[0] + h[1]*h[1] + h[2]*h[2]));
     const double nh[3] = { h[0]/norm, h[1]/norm, h[2]/norm };
-    spacing = (labs(h[0] + h[1] + h[2]) % 2 == 0) ? a0 / norm : a0 / (2. * norm);
+    spacing = latticePlaneSpacing(lattice, h, a0);
 
     const double o[3] = { -0.5*a0*nx, -0.5*a0*ny, -0.5*a0*nz };
     const double s0 = o[0]*nh[0] + o[1]*nh[1] + o[2]*nh[2];

@@ -8,7 +8,7 @@ using namespace std;
 input::input(string name)
   : _name(name), _numberOfLoops(0),
     _nx(10), _ny(10), _nz(10),
-    _a0(3.3024), _looponSize(0.), _method("line"), _segmentTolerance(0.01),
+    _a0(3.3024), _lattice(Lattice::BCC), _element("Ta"), _mass(180.9479), _looponSize(0.), _method("line"), _segmentTolerance(0.01),
     _outputFormat("xyz")
 {}
 
@@ -72,8 +72,20 @@ void input::readInputFile()
     const string head = "general";
     const YAML::Node g = require(root, head, "top level");
     checkKeys(g, {"a0", "Nx", "Ny", "Nz", "Loopon_size", "Output_format", "Method",
-                  "Segment_tolerance"}, head);
+                  "Segment_tolerance", "Lattice", "Element", "Mass"}, head);
     _a0         = readPositive(g, "a0", head);
+    if (g["Lattice"] && !parseLattice(g["Lattice"].as<string>(), _lattice))
+      fail(head, "'Lattice' must be BCC or FCC");
+    if (g["Element"]) {
+      _element = g["Element"].as<string>();
+      if (_element.empty() || _element.find_first_of(" \t") != string::npos)
+        fail(head, "'Element' must be one word (e.g. Ta, Cu)");
+    }
+    if (g["Mass"]) _mass = readPositive(g, "Mass", head);
+    else {
+      _mass = standardAtomicMass(_element);
+      if (_mass <= 0.) fail(head, "no standard mass known for Element '" + _element + "': give 'Mass' (Dalton)");
+    }
     _nx         = require(g, "Nx", head).as<int>();
     _ny         = require(g, "Ny", head).as<int>();
     _nz         = require(g, "Nz", head).as<int>();
@@ -94,7 +106,9 @@ void input::readInputFile()
       fail("dislocations", "must be a non-empty list");
     _numberOfLoops = dislos.size();
 
-    cout << "  a0             = " << _a0 << " Ang\n"
+    cout << "  Lattice        = " << latticeName(_lattice) << "  (" << _element << ", "
+         << _mass << " Da)\n"
+         << "  a0             = " << _a0 << " Ang\n"
          << "  Cells          = " << _nx << " x " << _ny << " x " << _nz << "\n"
          << "  Method         = " << _method
          << (_method == "line" ? "  (line integral, closed form)" : "  (Kroupa loopon sum)") << "\n";
@@ -253,6 +267,9 @@ void input::readInputFile()
 }
 
 double input::getA0()         { return _a0; }
+Lattice input::getLattice()   { return _lattice; }
+string input::getElement()    { return _element; }
+double input::getMass()       { return _mass; }
 string input::getOutputFormat() { return _outputFormat; }
 double input::getLooponSize() { return _looponSize; }
 string input::getMethod()     { return _method; }
@@ -260,7 +277,7 @@ double input::getSegmentTolerance() { return _segmentTolerance; }
 
 vector<int> input::getNumberOfCells() { return { _nx, _ny, _nz }; }
 int         input::getNumberOfLoops() { return _numberOfLoops; }
-int         input::getNumberOfAtoms() { return 2 * _nx * _ny * _nz; }
+int         input::getNumberOfAtoms() { return atomsPerCell(_lattice) * _nx * _ny * _nz; }
 
 string input::getOutputFileName()
 {

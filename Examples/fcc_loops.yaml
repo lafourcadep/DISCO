@@ -1,0 +1,25 @@
+# FCC copper: two perfect 1/2<110> glide loops on {111} planes (Mishin Cu a0).
+# Relaxing the sample (energy minimization or MD) dissociates them into Shockley partials.
+general:
+  Lattice: FCC
+  Element: Cu          # mass 63.546 Da from the built-in table (or set Mass)
+  a0: 3.615
+  Nx: 40
+  Ny: 40
+  Nz: 40
+  Output_format: both
+
+dislocations:
+  - Shape: rectangular
+    Half_m: 30.0
+    Half_p: 22.0
+    Corner_radius: 0.4
+    Center: [-25, -25, 0]
+    m: [1, -1, 0]
+    n: [1, 1, 1]
+  - Shape: hexagonal
+    Circumradius: 20.0
+    Corner_radius: 2.0
+    Center: [25, 25, 10]
+    m: [1, 0, 1]
+    n: [1, 1, -1]

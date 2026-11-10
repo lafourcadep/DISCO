@@ -1,6 +1,7 @@
 #ifndef LOOP_HPP
 #define LOOP_HPP
 
+#include "lattice.hpp"
 #include <fstream>
 #include <string>
 #include <vector>
@@ -124,12 +125,12 @@ std::vector< std::vector<double> > regularPolygon(int sides, double R,
                                                   const std::vector<double>& n);
 
 // Move `center` (Angstrom, box-centred frame) along n onto the nearest plane
-// halfway between two atomic planes of the (hkl) = n family of the BCC
-// supercell built by generateBCC(). In-plane components are kept.
+// halfway between two atomic planes of the (hkl) = n family of the supercell
+// built by generateLattice() (lattice.hpp). In-plane components are kept.
 // n must be integer Miller indices; `spacing` returns the interplanar distance.
 std::vector<double> snapToMidPlane(const std::vector<double>& center,
                                    const std::vector<double>& n,
                                    double a0, int nx, int ny, int nz,
-                                   double& spacing);
+                                   double& spacing, Lattice lattice = Lattice::BCC);
 
 #endif

@@ -7,7 +7,8 @@
 | `both` | both of the above |
 | `none` | nothing (timing runs) |
 
-Files are written in the current directory. The sample has 2 · Nx · Ny · Nz atoms, minus the atoms
+Files are written in the current directory. The sample has 2 · Nx · Ny · Nz atoms (BCC) or
+4 · Nx · Ny · Nz atoms (FCC), minus the atoms
 removed by vacancy loops and plus those added by interstitial loops (b · n ≠ 0, `Matter: auto`).
 The log prints the count. Added atoms come last in the file.
 
@@ -19,11 +20,13 @@ The log prints the count. Added atoms come last in the file.
 ## Extended XYZ
 
 Extended XYZ with a `Lattice="..."` header holding the 9 components of the box matrix, listed
-column by column (one box vector after the other). OVITO reads it directly.
+column by column (one box vector after the other). OVITO reads it directly. The species of every
+atom is `Element` (default `Ta`).
 
 ## LAMMPS data file
 
-`atomic` atom style, readable with `read_data`. If the box is triclinic the file has an
+`atomic` atom style, readable with `read_data`: one atom type, with mass `Mass` (commented with
+`Element`) in the `Masses` section. If the box is triclinic the file has an
 `xy xz yz` tilt line. Atom positions are expressed in the LAMMPS right-handed frame
 obtained by a QR (Gram–Schmidt) decomposition of the box vectors.
 
