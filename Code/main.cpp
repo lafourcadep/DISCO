@@ -223,6 +223,14 @@ int main(int argc, char** argv)
     const string      outFormat  = inputFile.getOutputFormat();
     int               nbAtoms    = inputFile.getNumberOfAtoms();   // changes with prismatic loops
     const double      da         = inputFile.getLooponSize();
+    const bool        lineMethod = inputFile.getMethod() == "line";
+    const double      segTol     = inputFile.getSegmentTolerance();
+#ifdef WITH_CUDA
+    if (useGPU && lineMethod) {   // GPU line-integral kernels: not implemented yet
+        cerr << "WARNING: Method: line runs on the CPU (OpenMP) backend for now\n";
+        useGPU = false;
+    }
+#endif
 
     const double dx = nx*a0, dy = ny*a0, dz = nz*a0;
     const double dx2 = dx/2., dy2 = dy/2., dz2 = dz/2.;
@@ -271,14 +279,16 @@ int main(int argc, char** argv)
                    c, inputFile.getM(i), inputFile.getN(i),
                    a0, compress);
         l.generateSurface();
-        l.generateLoopons();
+        if (!lineMethod) l.generateLoopons();
+        const int nSeg = lineMethod ? (int)l.polyline(segTol).size() : 0;
         const vector<double>& c0 = inputFile.getCenter(i);
         const double shift = sqrt((c[0]-c0[0])*(c[0]-c0[0]) + (c[1]-c0[1])*(c[1]-c0[1])
                                   + (c[2]-c0[2])*(c[2]-c0[2]));
         const double b = l.getBurgers()[0];
         planeSpacing[i] = d;
         cout << "  Loop " << i+1 << ": " << inputFile.getShape(i)
-             << " | " << l.getNumberOfLoopons() << " loopons | "
+             << " | " << (lineMethod ? nSeg : l.getNumberOfLoopons())
+             << (lineMethod ? " segments | " : " loopons | ")
              << matterName(matterType(l)) << "\n";
         if (shape == "rectangular") {
             cout << "    size   : Half_m " << inputFile.getHalfM(i) / b << " |b|, Half_p "
@@ -296,9 +306,9 @@ int main(int argc, char** argv)
             else
                 cout << "    size   : " << l.getNumberOfVertices() << " vertices  (|b| = "
                      << b << " Ang)\n";
-            cout << "    contour: area " << l.getContourArea() << " Ang^2 (loopons "
-                 << l.getNumberOfLoopons() * l.getSurface() << "), corner radius "
-                 << l.getCornerRadius() << " Ang\n";
+            cout << "    contour: area " << l.getContourArea() << " Ang^2";
+            if (!lineMethod) cout << " (loopons " << l.getNumberOfLoopons() * l.getSurface() << ")";
+            cout << ", corner radius " << l.getCornerRadius() << " Ang\n";
         }
         else if (shape == "parallelogram")
             cout << "    size   : Half_1 " << inputFile.getHalfM(i) / b << " |b|, Half_2 "
@@ -344,11 +354,12 @@ int main(int argc, char** argv)
             const SlabResult sl = prismaticSlab(listLoop[l], planeSpacing[l],
                                                 hAtomX, hAtomY, hAtomZ, dx, dy, dz);
             const int    ns    = (int)sl.atoms.size();
-            const double area  = listLoop[l].getNumberOfLoopons() * listLoop[l].getSurface();
+            const double area  = lineMethod ? listLoop[l].getContourArea()
+                                            : listLoop[l].getNumberOfLoopons() * listLoop[l].getSurface();
             const double nomin = nbAtoms / (dx * dy * dz) * area * sl.height;
             // Interstitial: the kept atoms nearest the cut sit d/2 from the loopon plane,
             // and the discrete loopon sum is only smooth there for a step <~ 0.7 * d/2
-            if (sl.type == MatterType::INTERSTITIAL && da > 0.35 * sl.spacing)
+            if (!lineMethod && sl.type == MatterType::INTERSTITIAL && da > 0.35 * sl.spacing)
                 cerr << "WARNING: loop " << l+1 << " is interstitial and Loopon_size = " << da
                      << " Ang > 0.35 d = " << 0.35 * sl.spacing << " Ang: the planes next to the"
                      << " cut will be noisy; use Loopon_size <= " << 0.35 * sl.spacing << "\n";
@@ -405,6 +416,14 @@ int main(int argc, char** argv)
         }
         const vector<double> b = lp.getBurgers(), m = lp.getM(), n = lp.getN();
         d.phys = { b[0], b[1], b[2], m[0], m[1], m[2], n[0], n[1], n[2], lp.getSurface() };
+        if (lineMethod) {
+            d.line = true;
+            for (const auto& v : lp.polyline(segTol)) {
+                d.vx.push_back(v[0]); d.vy.push_back(v[1]); d.vz.push_back(v[2]);
+            }
+            const vector<double> c = lp.getCenter();
+            d.cx = c[0]; d.cy = c[1]; d.cz = c[2];
+        }
     }
 
     // ---- Kroupa displacement sum ----
@@ -455,7 +474,8 @@ int main(int argc, char** argv)
             d.b[j] = bvec[j] * mvec[j];   // b_actual[j] = |b| * m_j
             d.n[j] = nvec[j];
         }
-        d.A = static_cast<double>(lp.getNumberOfLoopons()) * lp.getSurface();
+        d.A = lineMethod ? lp.getContourArea()
+                         : static_cast<double>(lp.getNumberOfLoopons()) * lp.getSurface();
         loopDescs.push_back(d);
     }
 
@@ -559,17 +579,20 @@ int main(int argc, char** argv)
     cout << "\n  " << dev << (perLoop ? (useGPU ? " per loop (loopon upload + kernel):" : " per loop:") : ":") << "\n";
     double pairsTotal = 0., kernelSec = 0.;
     for (int l = 0; l < nbLoops; l++) {
-        const int    nLp   = listLoop[l].getNumberOfLoopons();
+        const int    nLp   = lineMethod ? (int)listLoop[l].polyline(segTol).size()
+                                        : listLoop[l].getNumberOfLoopons();
         const double pairs = double(nbAtoms) * nLp;
         pairsTotal += pairs;
         kernelSec  += bt.loopSec[l];
         if (perLoop)
-            cout << "    Loop " << setw(3) << l+1 << " : " << setw(7) << nLp << " loopons  "
+            cout << "    Loop " << setw(3) << l+1 << " : " << setw(7) << nLp
+                 << (lineMethod ? " segments " : " loopons  ")
                  << setw(10) << bt.loopSec[l] << " s  " << setw(8) << setprecision(1)
                  << pairs / bt.loopSec[l] / 1e6 << " M pairs/s\n" << setprecision(3);
     }
     cout << "    All loops: " << setprecision(3) << scientific << pairsTotal << fixed
-         << " atom-loopon pairs in " << kernelSec << " s  ->  " << setprecision(1)
+         << (lineMethod ? " atom-segment pairs in " : " atom-loopon pairs in ")
+         << kernelSec << " s  ->  " << setprecision(1)
          << pairsTotal / kernelSec / 1e6 << " M pairs/s\n";
 
     cout << "Done.\n";

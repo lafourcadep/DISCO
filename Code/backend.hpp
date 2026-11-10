@@ -14,10 +14,15 @@
 
 #include "kroupa.hpp"
 
-// Loopon positions of one loop (SoA) and its physical parameters
+// One loop for the backends: loopon positions (SoA) and its physical parameters
+// (Method: loopons), or its contour polyline and fan apex (Method: line,
+// barnett.hpp; the Burgers vector is (bx mx, by my, bz mz) from phys)
 struct LoopData {
     std::vector<double> x, y, z;
     LoopPhys phys;
+    bool line = false;
+    std::vector<double> vx, vy, vz;    // polyline vertices, counter-clockwise about n
+    double cx = 0., cy = 0., cz = 0.;  // fan apex (loop centre)
 };
 
 // Atom positions (SoA, read-only) and accumulated displacements (zeroed by the caller)

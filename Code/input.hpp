@@ -18,7 +18,9 @@ private:
   int    _numberOfLoops;
   int    _nx, _ny, _nz;
   double _a0;
-  double _looponSize;  // Loopon grid step, same for every loop (Angstrom)
+  double _looponSize;  // Loopon grid step, same for every loop (Angstrom); 0 if unused
+  std::string _method;        // "loopons" (Kroupa sum, default) | "line" (line integral)
+  double _segmentTolerance;   // line: max chord sagitta of curved contours (Angstrom)
   std::string _outputFormat;  // "xyz" | "lammps" | "both" | "none"  (default: "xyz")
 
   // Per-loop geometry
@@ -50,6 +52,8 @@ public:
   std::string         getOutputFileName();
   std::string         getOutputFormat();
   double              getLooponSize();
+  std::string         getMethod();
+  double              getSegmentTolerance();
 
   // Per-loop accessors
   std::vector<double> getCenter(int dislo);

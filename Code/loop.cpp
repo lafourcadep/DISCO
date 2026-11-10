@@ -433,6 +433,105 @@ double loop::getContourArea() const
 }
 
 // =============================================================================
+// polyline
+// =============================================================================
+// Chords needed for an arc of angle th and radius r with sagitta <= eps
+static int arcChords(double th, double r, double eps)
+{
+    if (r <= 0. || th <= 0.) return 0;
+    const double c = 1. - eps / r;
+    const double maxStep = (c <= -1.) ? M_PI : 2. * acos(max(c, -1.));   // angle per chord
+    return max(1, (int)ceil(th / maxStep - 1e-12));
+}
+
+// Rounded convex polygon in 2D (CCW): vertices P, corner radius r (arcs of
+// centre Q_i = inner polygon vertex, from the outward normal of side i-1 to that
+// of side i). Returns the 2D polyline, without repeated points.
+static void roundedPolygon2D(const vector<double>& pu, const vector<double>& pv, double r,
+                             double eps, vector<double>& ou, vector<double>& ov)
+{
+    const int N = (int)pu.size();
+    auto push = [&](double a, double b) {
+        if (!ou.empty() && fabs(ou.back() - a) < 1e-12 && fabs(ov.back() - b) < 1e-12) return;
+        ou.push_back(a); ov.push_back(b);
+    };
+    if (r <= 0.) {
+        for (int i = 0; i < N; i++) push(pu[i], pv[i]);
+    } else {
+        vector<double> nu(N), nv(N);   // outward unit normal of side i (P_i -> P_i+1)
+        for (int i = 0; i < N; i++) {
+            const int j = (i + 1) % N;
+            const double eu = pu[j] - pu[i], ev = pv[j] - pv[i], l = sqrt(eu*eu + ev*ev);
+            nu[i] = ev / l; nv[i] = -eu / l;
+        }
+        for (int i = 0; i < N; i++) {
+            const int k = (i + N - 1) % N;
+            // inner vertex Q_i = P_i - r (n1 + n2) / (1 + n1.n2) (outward normals)
+            const double f = r / (1. + nu[k]*nu[i] + nv[k]*nv[i]);
+            const double qu = pu[i] - f * (nu[k] + nu[i]), qv = pv[i] - f * (nv[k] + nv[i]);
+            const double a0 = atan2(nv[k], nu[k]);
+            double th = atan2(nv[i], nu[i]) - a0;
+            while (th < 0.)        th += 2. * M_PI;
+            while (th >= 2. * M_PI) th -= 2. * M_PI;
+            const int nc = arcChords(th, r, eps);
+            for (int c = 0; c <= nc; c++) {
+                const double a = a0 + th * c / max(nc, 1);
+                push(qu + r * cos(a), qv + r * sin(a));
+            }
+        }
+    }
+    if (ou.size() > 1 && fabs(ou.back() - ou[0]) < 1e-12 && fabs(ov.back() - ov[0]) < 1e-12) {
+        ou.pop_back(); ov.pop_back();
+    }
+}
+
+vector< vector<double> > loop::polyline(double eps) const
+{
+    vector<double> a, b;    // in-plane coordinates along _u, _v
+    switch (_shape) {
+        case LoopShape::CIRCULAR: {
+            // n chords of sagitta <= eps; radius set so the polygon has the disc's area
+            const int n = max(8, arcChords(2. * M_PI, _radius, eps));
+            const double Rp = _radius * sqrt(2. * M_PI / (n * sin(2. * M_PI / n)));
+            for (int k = 0; k < n; k++) {
+                a.push_back(Rp * cos(2. * M_PI * k / n));
+                b.push_back(Rp * sin(2. * M_PI * k / n));
+            }
+            break;
+        }
+        case LoopShape::RECTANGULAR:
+        case LoopShape::PARALLELOGRAM: {
+            const vector<double> pu = { _half_m, -_half_m, -_half_m,  _half_m };
+            const vector<double> pv = { _half_p,  _half_p, -_half_p, -_half_p };
+            if (_shape == LoopShape::PARALLELOGRAM) { a = pu; b = pv; break; }   // oblique axes
+            // (+,+) (-,+) (-,-) (+,-) is counter-clockwise in (u, v)
+            roundedPolygon2D(pu, pv, _r_corner, eps, a, b);
+            break;
+        }
+        case LoopShape::POLYGON:
+            roundedPolygon2D(_pu, _pv, _r_corner, eps, a, b);   // _pu, _pv are CCW in (u, v)
+            break;
+    }
+    const int N = (int)a.size();
+    vector< vector<double> > out(N, vector<double>(3));
+    for (int k = 0; k < N; k++)
+        for (int i = 0; i < 3; i++)
+            out[k][i] = _compress[i] * (_u[i]*a[k] + _v[i]*b[k]) + _center[i];
+    // Counter-clockwise about n: sum of (V_k - c) x (V_k+1 - c) along n must be > 0
+    double s = 0.;
+    for (int k = 0; k < N; k++) {
+        const vector<double>& p = out[k];
+        const vector<double>& q = out[(k + 1) % N];
+        const double r1[3] = { p[0]-_center[0], p[1]-_center[1], p[2]-_center[2] };
+        const double r2[3] = { q[0]-_center[0], q[1]-_center[1], q[2]-_center[2] };
+        s += (r1[1]*r2[2] - r1[2]*r2[1]) * _n[0] + (r1[2]*r2[0] - r1[0]*r2[2]) * _n[1]
+           + (r1[0]*r2[1] - r1[1]*r2[0]) * _n[2];
+    }
+    if (s < 0.) reverse(out.begin(), out.end());
+    return out;
+}
+
+// =============================================================================
 // regularPolygon
 // =============================================================================
 vector< vector<double> > regularPolygon(int sides, double R, vector<double> vertexDir,

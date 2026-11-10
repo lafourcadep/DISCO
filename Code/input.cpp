@@ -8,7 +8,7 @@ using namespace std;
 input::input(string name)
   : _name(name), _numberOfLoops(0),
     _nx(10), _ny(10), _nz(10),
-    _a0(3.3024), _looponSize(0.),
+    _a0(3.3024), _looponSize(0.), _method("loopons"), _segmentTolerance(0.01),
     _outputFormat("xyz")
 {}
 
@@ -71,12 +71,22 @@ void input::readInputFile()
 
     const string head = "general";
     const YAML::Node g = require(root, head, "top level");
-    checkKeys(g, {"a0", "Nx", "Ny", "Nz", "Loopon_size", "Output_format"}, head);
+    checkKeys(g, {"a0", "Nx", "Ny", "Nz", "Loopon_size", "Output_format", "Method",
+                  "Segment_tolerance"}, head);
     _a0         = readPositive(g, "a0", head);
     _nx         = require(g, "Nx", head).as<int>();
     _ny         = require(g, "Ny", head).as<int>();
     _nz         = require(g, "Nz", head).as<int>();
-    _looponSize = readPositive(g, "Loopon_size", head);
+    if (g["Method"]) _method = g["Method"].as<string>();
+    if (_method != "loopons" && _method != "line")
+      fail(head, "'Method' must be loopons or line");
+    if (_method == "loopons") {
+      _looponSize = readPositive(g, "Loopon_size", head);
+      if (g["Segment_tolerance"]) fail(head, "'Segment_tolerance' needs Method: line");
+    } else {
+      if (g["Loopon_size"]) _looponSize = readPositive(g, "Loopon_size", head);   // accepted, unused
+      if (g["Segment_tolerance"]) _segmentTolerance = readPositive(g, "Segment_tolerance", head);
+    }
     if (g["Output_format"]) _outputFormat = g["Output_format"].as<string>();
 
     const YAML::Node dislos = require(root, "dislocations", "top level");
@@ -86,7 +96,13 @@ void input::readInputFile()
 
     cout << "  a0             = " << _a0 << " Ang\n"
          << "  Cells          = " << _nx << " x " << _ny << " x " << _nz << "\n"
-         << "  Loopon_size    = " << _looponSize << " Ang\n"
+         << "  Method         = " << _method
+         << (_method == "line" ? "  (line integral, closed form)" : "  (Kroupa loopon sum)") << "\n";
+    if (_method == "loopons")
+      cout << "  Loopon_size    = " << _looponSize << " Ang\n";
+    else
+      cout << "  Segment_tol.   = " << _segmentTolerance << " Ang\n";
+    cout
          << "  Loops          = " << _numberOfLoops << "\n";
     if (g["Output_format"])
       cout << "  Output_format  = " << _outputFormat << "\n";
@@ -236,6 +252,8 @@ void input::readInputFile()
 double input::getA0()         { return _a0; }
 string input::getOutputFormat() { return _outputFormat; }
 double input::getLooponSize() { return _looponSize; }
+string input::getMethod()     { return _method; }
+double input::getSegmentTolerance() { return _segmentTolerance; }
 
 vector<int> input::getNumberOfCells() { return { _nx, _ny, _nz }; }
 int         input::getNumberOfLoops() { return _numberOfLoops; }

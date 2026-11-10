@@ -107,6 +107,12 @@ public:
   double              getCornerRadius()     const;
   int                 getNumberOfVertices() const;   // polygon only
   double              getContourArea()      const;   // exact area of the (rounded) contour
+
+  // Contour as a closed polyline for the line-integral field (barnett.hpp):
+  // absolute positions (Angstrom), counter-clockwise about n, last vertex joined
+  // to the first. Straight sides are exact; circles and rounded corners are cut
+  // into chords of sagitta <= eps (a circle's chord radius keeps its area).
+  std::vector< std::vector<double> > polyline(double eps) const;
 };
 
 // Vertices (in-plane offsets from the centre, Angstrom) of a regular polygon with

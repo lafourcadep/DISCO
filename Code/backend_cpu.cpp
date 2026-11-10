@@ -1,5 +1,6 @@
 // =============================================================================
 // Kroupa dislocation-loop displacement field — CPU (OpenMP) backend
+// (Method: line loops use the closed-form line integral, barnett.hpp)
 //
 // Same work and summation order as the CUDA kernel (backend_cuda.cu): for each
 // atom, loop by loop, the 27 periodic images and all loopons, accumulated in
@@ -15,6 +16,7 @@
 #include <omp.h>
 
 #include "backend.hpp"
+#include "barnett.hpp"
 
 using namespace std;
 
@@ -35,6 +37,30 @@ void kroupaCPU(const AtomArrays& atoms, const vector<LoopData>& loops,
     const double tStart = omp_get_wtime();
     for (int l = 0; l < nbLoops; l++) {
         const LoopData& lp  = loops[l];
+        if (lp.line) {
+            // Line integral: per atom and periodic image, the closed-form field of
+            // the polyline (image of the loop at +delta = atom at -delta)
+            const int nv = (int)lp.vx.size();
+            const double bx = lp.phys.bx * lp.phys.mx, by = lp.phys.by * lp.phys.my,
+                         bz = lp.phys.bz * lp.phys.mz;
+            cout << "  Loop " << l+1 << "/" << nbLoops << ":  " << nv << " segments\n" << flush;
+            const double t0 = omp_get_wtime();
+#pragma omp parallel for schedule(dynamic, 256)
+            for (int a = 0; a < nbAtoms; a++) {
+                double dux = 0., duy = 0., duz = 0.;
+                for (int ii = -1; ii <= 1; ii++)
+                for (int jj = -1; jj <= 1; jj++)
+                for (int kk = -1; kk <= 1; kk++)
+                    barnettLoop<double>(atoms.x[a] - dx*ii, atoms.y[a] - dy*jj, atoms.z[a] - dz*kk,
+                                        lp.vx.data(), lp.vy.data(), lp.vz.data(), nv,
+                                        lp.cx, lp.cy, lp.cz, bx, by, bz, dux, duy, duz);
+                atoms.ux[a] += dux;
+                atoms.uy[a] += duy;
+                atoms.uz[a] += duz;
+            }
+            t.loopSec[l] = omp_get_wtime() - t0;
+            continue;
+        }
         const LoopPhys  L   = lp.phys;
         const int       nLp = (int)lp.x.size();
         const double*   lx  = lp.x.data();
