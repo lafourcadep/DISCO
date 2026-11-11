@@ -28,6 +28,7 @@
 #include "loop_deform.hpp"
 #include "backend.hpp"
 #include "prismatic.hpp"
+#include "polycrystal.hpp"
 
 using namespace std;
 
@@ -225,12 +226,15 @@ int main(int argc, char** argv)
     const Orientation&   orient = inputFile.getOrientation();
     const vector<double> boxL   = inputFile.getBoxLengths();   // N * a0, or N * period along X/Y/Z
     const double dx = boxL[0], dy = boxL[1], dz = boxL[2];
+    vector<Grain> polyGrains;               // polycrystal: grains (seed, orientation, atoms)
     const double dx2 = dx/2., dy2 = dy/2., dz2 = dz/2.;
     const vector<double> compress = {1., 1., 1.};
 
+    const PolycrystalSpec& poly = inputFile.getPolycrystal();
     cout << "\n--- Supercell ---\n";
-    cout << "  " << latticeName(lattice) << ": " << nx << " x " << ny << " x " << nz
-         << "  (a0 = " << a0 << " Ang)  |  Atoms: " << nbAtoms << "\n";
+    if (!poly.active)
+        cout << "  " << latticeName(lattice) << ": " << nx << " x " << ny << " x " << nz
+             << "  (a0 = " << a0 << " Ang)  |  Atoms: " << nbAtoms << "\n";
     if (orient.active) {
         const char* ax[3] = { "X", "Y", "Z" };
         cout << "  Orientation:";
@@ -243,7 +247,34 @@ int main(int argc, char** argv)
 
     // ---- Generate the lattice ----
     vector<vector<double>> atomPos;
-    if (orient.active) {
+    vector<int> atomGrain;                  // polycrystal: grain of each atom (empty otherwise)
+    if (poly.active) {
+        const vector<Grain> grains0 = makeGrains(poly);
+        PolycrystalResult pc = buildPolycrystal(lattice, a0, poly, grains0);
+        nbAtoms = (int)pc.x.size();
+        atomPos.resize(nbAtoms);
+        for (int a = 0; a < nbAtoms; a++) atomPos[a] = { pc.x[a], pc.y[a], pc.z[a] };
+        atomGrain.swap(pc.grain);
+        const double V = dx * dy * dz, rho = atomsPerCell(lattice) / (a0 * a0 * a0);
+        cout << "  " << latticeName(lattice) << " polycrystal: " << pc.grains.size() << " grains  (a0 = "
+             << a0 << " Ang)  |  Atoms: " << nbAtoms << "  (perfect crystal " << lround(rho * V)
+             << "; " << pc.removedGB << " removed at GBs, pairs < " << poly.gbMinDistance << " NN)\n"
+             << "  Grain   seed (Ang)                         Euler phi1 Phi phi2 (deg)    atoms\n";
+        long small = 0;
+        for (size_t g = 0; g < pc.grains.size(); g++) {
+            double e1, e2, e3;
+            eulerFromOrientation(pc.grains[g].o, e1, e2, e3);
+            cout << "  " << setw(5) << g + 1 << fixed << setprecision(3)
+                 << setw(11) << pc.grains[g].seed[0] << setw(11) << pc.grains[g].seed[1]
+                 << setw(11) << pc.grains[g].seed[2] << "   " << setprecision(2)
+                 << setw(8) << e1 << setw(8) << e2 << setw(8) << e3 << setw(12) << pc.grains[g].atoms
+                 << defaultfloat << setprecision(6) << "\n";
+            if (pc.grains[g].atoms < 200) small++;
+        }
+        if (small)
+            cerr << "WARNING: " << small << " grain(s) hold fewer than 200 atoms\n";
+        polyGrains = pc.grains;
+    } else if (orient.active) {
         const double L[3] = { dx, dy, dz };
         atomPos = generateOrientedLattice(lattice, orient, L, a0);
         if ((int)atomPos.size() != nbAtoms) {
@@ -253,7 +284,7 @@ int main(int argc, char** argv)
         }
     } else
         atomPos = generateLattice(lattice, nx, ny, nz, a0);
-    lap(string(latticeName(lattice)) + " lattice (CPU)");
+    lap(poly.active ? string("Polycrystal (CPU)") : string(latticeName(lattice)) + " lattice (CPU)");
 
     // ---- Build dislocation loops (host — only to generate loopon positions) ----
     vector<loop> listLoop;
@@ -448,9 +479,11 @@ int main(int argc, char** argv)
                 if (removed[a]) continue;
                 newIndex[a] = k;
                 hAtomX[k] = hAtomX[a];  hAtomY[k] = hAtomY[a];  hAtomZ[k] = hAtomZ[a];
+                if (!atomGrain.empty()) atomGrain[k] = atomGrain[a];
                 k++;
             }
             hAtomX.resize(k);  hAtomY.resize(k);  hAtomZ.resize(k);
+            if (!atomGrain.empty()) atomGrain.resize(k);
             vector<Copy> kept;
             for (Copy c : copies)
                 if (newIndex[c.atom] >= 0) { c.atom = newIndex[c.atom]; kept.push_back(c); }
@@ -493,7 +526,9 @@ int main(int argc, char** argv)
     const AtomArrays atoms = { hAtomX.data(), hAtomY.data(), hAtomZ.data(),
                                hDisplX.data(), hDisplY.data(), hDisplZ.data(), nbAtoms };
     BackendTiming bt;
-    if (useGPU) {
+    if (nbLoops == 0) {
+        cout << "No dislocation loop: atoms keep their lattice positions\n";
+    } else if (useGPU) {
 #ifdef WITH_CUDA
         kroupaGPU(atoms, loopData, dx, dy, dz, gpuOpt, bt);
         timing.push_back({"Alloc + upload atoms (CPU->GPU)", bt.upload});
@@ -511,6 +546,7 @@ int main(int argc, char** argv)
         hAtomX.push_back(hAtomX[c.atom]);
         hAtomY.push_back(hAtomY[c.atom]);
         hAtomZ.push_back(hAtomZ[c.atom]);
+        if (!atomGrain.empty()) atomGrain.push_back(atomGrain[c.atom]);
         hDisplX.push_back(hDisplX[c.atom] + c.shift[0]);
         hDisplY.push_back(hDisplY[c.atom] + c.shift[1]);
         hDisplZ.push_back(hDisplZ[c.atom] + c.shift[2]);
@@ -607,10 +643,13 @@ int main(int argc, char** argv)
             << Hprime[0][0] << " " << Hprime[1][0] << " " << Hprime[2][0] << "  "
             << Hprime[0][1] << " " << Hprime[1][1] << " " << Hprime[2][1] << "  "
             << Hprime[0][2] << " " << Hprime[1][2] << " " << Hprime[2][2]
-            << "\" Properties=species:S:1:pos:R:3\n";
+            << "\" Properties=species:S:1:pos:R:3" << (atomGrain.empty() ? "" : ":grain:I:1") << "\n";
         out << fixed << setprecision(8);
-        for (int k = 0; k < nbAtoms; k++)
-            out << element << " " << finalX[k] << " " << finalY[k] << " " << finalZ[k] << "\n";
+        for (int k = 0; k < nbAtoms; k++) {
+            out << element << " " << finalX[k] << " " << finalY[k] << " " << finalZ[k];
+            if (!atomGrain.empty()) out << " " << atomGrain[k] + 1;
+            out << "\n";
+        }
         out.close();
         cout << "Written " << outName << "\n";
     }
@@ -619,6 +658,29 @@ int main(int argc, char** argv)
     if (outFormat == "lammps" || outFormat == "both") {
         string lmpName = outName.substr(0, outName.size()-3) + "lmp";
         writeLAMMPS(lmpName, Hprime, finalX, finalY, finalZ, nbAtoms, element, inputFile.getMass());
+    }
+
+    // ---- Polycrystal: grain table (1-based ids, as in the xyz 'grain' column) ----
+    if (poly.active && outFormat != "none") {
+        const string gName = outName.substr(0, outName.size()-4) + "_grains.txt";
+        ofstream gout(gName);
+        gout << "# DISCO polycrystal: " << polyGrains.size() << " grains, box " << dx << " " << dy << " "
+             << dz << " Ang (origin at the box centre; xyz/lmp files are shifted by +L/2)\n"
+             << "# R: rows = crystal directions of the lab x, y, z axes (lab = R crystal); Euler: Bunge, deg\n"
+             << "# grain  seed_x seed_y seed_z  phi1 Phi phi2  R00 R01 R02 R10 R11 R12 R20 R21 R22  atoms\n";
+        gout << setprecision(10);
+        for (size_t g = 0; g < polyGrains.size(); g++) {
+            double e1, e2, e3;
+            eulerFromOrientation(polyGrains[g].o, e1, e2, e3);
+            long na = 0;
+            for (int a = 0; a < nbAtoms; a++) na += (atomGrain[a] == (int)g);
+            gout << g + 1 << "  " << polyGrains[g].seed[0] << " " << polyGrains[g].seed[1] << " "
+                 << polyGrains[g].seed[2] << "  " << e1 << " " << e2 << " " << e3 << " ";
+            for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 3; j++) gout << " " << polyGrains[g].o.R[i][j];
+            gout << "  " << na << "\n";
+        }
+        cout << "Written " << gName << "\n";
     }
 
     if (outFormat != "xyz" && outFormat != "lammps" && outFormat != "both" && outFormat != "none")

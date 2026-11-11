@@ -7,6 +7,9 @@
 | `both` | both of the above |
 | `none` | nothing (timing runs) |
 
+With a `polycrystal` block the files are `Poly_<G>g_<Lx>x<Ly>x<Lz>.xyz` / `.lmp`, plus a grain table
+`Poly_..._grains.txt`, and the xyz file has a per-atom `grain` column (see [Polycrystals](polycrystal.md)).
+
 Files are written in the current directory. The sample has 2 · Nx · Ny · Nz atoms (BCC) or
 4 · Nx · Ny · Nz atoms (FCC) (with `Orientation`: atoms per cell × box volume / a0³), minus the atoms
 removed by vacancy loops and plus those added by interstitial loops (b · n ≠ 0, `Matter: auto`).

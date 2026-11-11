@@ -12,6 +12,7 @@ nav = [
   { "Usage" = [
     { "Input file" = "input.md" },
     { "Output files" = "output.md" },
+    { "Polycrystals" = "polycrystal.md" },
     { "CPU or GPU" = "backends.md" },
   ] },
   { "Input generators" = [

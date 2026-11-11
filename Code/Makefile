@@ -66,8 +66,8 @@ endif
 CXX_FLAGS  = -O3 -march=native -std=c++14 -fopenmp
 NVCC_FLAGS = -O3 -arch=$(GPU_ARCH) -std=c++14 -DWITH_CUDA -Xcompiler -fopenmp,-O3,-march=native
 
-SRC_HOST  = main.cpp input.cpp loop.cpp loop_deform.cpp prismatic.cpp backend_cpu.cpp
-HEADERS   = input.hpp lattice.hpp loop.hpp loop_deform.hpp prismatic.hpp backend.hpp kroupa.hpp barnett.hpp
+SRC_HOST  = main.cpp input.cpp loop.cpp loop_deform.cpp prismatic.cpp polycrystal.cpp backend_cpu.cpp
+HEADERS   = input.hpp lattice.hpp polycrystal.hpp loop.hpp loop_deform.hpp prismatic.hpp backend.hpp kroupa.hpp barnett.hpp
 
 # ------------------------------------------------------------------------------
 exec_cuda: $(SRC_HOST) backend_cuda.cu $(HEADERS)
@@ -120,10 +120,16 @@ ORIENT_BIN = tests/test_orient
 $(ORIENT_BIN): tests/test_orient.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp $(PARENT)/lattice.hpp
 	$(CXX) -O2 -std=c++14 -I$(PARENT) -o $(ORIENT_BIN) tests/test_orient.cpp $(PARENT)/loop.cpp
 
-test: $(TEST_BIN) $(SNAP_BIN) $(PRISM_BIN) $(BARN_BIN) $(ORIENT_BIN)
+POLY_BIN = tests/test_polycrystal
+
+$(POLY_BIN): tests/test_polycrystal.cpp $(PARENT)/polycrystal.cpp $(PARENT)/polycrystal.hpp $(PARENT)/lattice.hpp
+	$(CXX) -O2 -std=c++14 -I$(PARENT) -o $(POLY_BIN) tests/test_polycrystal.cpp $(PARENT)/polycrystal.cpp
+
+test: $(TEST_BIN) $(SNAP_BIN) $(PRISM_BIN) $(BARN_BIN) $(ORIENT_BIN) $(POLY_BIN)
 	./$(TEST_BIN)
 	./$(SNAP_BIN)
 	./$(ORIENT_BIN)
+	./$(POLY_BIN)
 	./$(PRISM_BIN)
 	./$(BARN_BIN)
 

@@ -18,7 +18,8 @@ CPU (OpenMP).
 ## What it does
 
 - BCC or FCC lattice of `Nx × Ny × Nz` cubic cells, any lattice parameter and element, or an
-  oriented crystal (`Orientation`: any orthogonal X, Y, Z crystal directions)
+  oriented crystal (`Orientation`: any orthogonal X, Y, Z crystal directions), or a periodic
+  Voronoi polycrystal (`polycrystal:` block; loops in grains: next step)
   (see [Input file](input.md#lattice)).
 - Any number of loops: circles, rectangles (optionally rounded, optionally rotated in their plane),
   parallelograms and convex polygons such as hexagons (optionally rounded), on any plane `n` with

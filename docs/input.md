@@ -148,6 +148,11 @@ dislocations:
 `Examples/generators/make_fcc_loops.py` writes FCC inputs (prismatic and Frank loops); see
 [Input generators](generators.md).
 
+### Polycrystal
+
+A top-level `polycrystal:` block (box, number of grains or explicit grains) replaces `Nx`, `Ny`, `Nz`
+and `Orientation`; see [Polycrystals](polycrystal.md).
+
 ### Oriented crystal
 
 `Orientation` gives the crystal directions of the box axes, for example the usual FCC dislocation

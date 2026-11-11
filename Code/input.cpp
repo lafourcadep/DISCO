@@ -68,6 +68,40 @@ static vector<double> readVec3(const YAML::Node& block, const string& key, const
   return { readNumber(v[0], key, where), readNumber(v[1], key, where), readNumber(v[2], key, where) };
 }
 
+// Orientation: {X: [..], Y: [..], Z: [..]}: integer crystal directions of the
+// lab axes, orthogonal and right-handed
+static Orientation parseOrientation(const YAML::Node& o, const string& where)
+{
+  Orientation out;
+  if (!o.IsMap()) fail(where, "'Orientation' must be a map {X: [..], Y: [..], Z: [..]}");
+  checkKeys(o, {"X", "Y", "Z"}, where + ": Orientation");
+  const char* ax[3] = { "X", "Y", "Z" };
+  for (int a = 0; a < 3; a++) {
+    const vector<double> v = readVec3(o, ax[a], where + ": Orientation");
+    double nn = 0.;
+    for (int k = 0; k < 3; k++) {
+      const long h = lround(v[k]);
+      if (fabs(v[k] - h) > 1e-9) fail(where, string("Orientation ") + ax[a] + " must be integer Miller indices");
+      out.dir[a][k] = h;
+      nn += double(h) * h;
+    }
+    if (nn == 0.) fail(where, string("Orientation ") + ax[a] + " is zero");
+    for (int k = 0; k < 3; k++) out.R[a][k] = out.dir[a][k] / sqrt(nn);
+  }
+  const long (*d)[3] = out.dir;
+  for (int a = 0; a < 3; a++) {
+    const int b = (a + 1) % 3;
+    if (d[a][0]*d[b][0] + d[a][1]*d[b][1] + d[a][2]*d[b][2] != 0)
+      fail(where, string("Orientation ") + ax[a] + " and " + ax[b] + " are not orthogonal");
+  }
+  const long cz[3] = { d[0][1]*d[1][2] - d[0][2]*d[1][1], d[0][2]*d[1][0] - d[0][0]*d[1][2],
+                       d[0][0]*d[1][1] - d[0][1]*d[1][0] };
+  if (cz[0]*d[2][0] + cz[1]*d[2][1] + cz[2]*d[2][2] <= 0)
+    fail(where, "Orientation is left-handed: Z must be along X x Y");
+  out.active = true;
+  return out;
+}
+
 void input::readInputFile()
 {
   ifstream stream(_name.c_str());
@@ -87,7 +121,7 @@ void input::readInputFile()
 
   try {
     const YAML::Node root = YAML::LoadFile(_name);
-    checkKeys(root, {"general", "dislocations"}, "top level");
+    checkKeys(root, {"general", "dislocations", "polycrystal"}, "top level");
 
     const string head = "general";
     const YAML::Node g = require(root, head, "top level");
@@ -117,38 +151,58 @@ void input::readInputFile()
              << " at room temperature, but Lattice: " << latticeName(_lattice) << " was requested\n";
     // Orientation: crystal directions (integer) of the box axes X, Y, Z; orthogonal,
     // right-handed. Nx, Ny, Nz then count lattice periods along X, Y, Z.
-    if (g["Orientation"]) {
-      const YAML::Node o = g["Orientation"];
-      if (!o.IsMap()) fail(head, "'Orientation' must be a map {X: [..], Y: [..], Z: [..]}");
-      checkKeys(o, {"X", "Y", "Z"}, head + ": Orientation");
-      const char* ax[3] = { "X", "Y", "Z" };
-      for (int a = 0; a < 3; a++) {
-        const vector<double> v = readVec3(o, ax[a], head + ": Orientation");
-        double nn = 0.;
-        for (int k = 0; k < 3; k++) {
-          const long h = lround(v[k]);
-          if (fabs(v[k] - h) > 1e-9) fail(head, string("Orientation ") + ax[a] + " must be integer Miller indices");
-          _orient.dir[a][k] = h;
-          nn += double(h) * h;
+    if (g["Orientation"]) _orient = parseOrientation(g["Orientation"], head);
+    if (root["polycrystal"]) {
+      // polycrystal: the box and the grains replace Nx, Ny, Nz and Orientation
+      if (g["Nx"] || g["Ny"] || g["Nz"] || g["Orientation"])
+        fail(head, "with a 'polycrystal' block, give the box there (Box), not Nx/Ny/Nz/Orientation");
+      const string ph = "polycrystal";
+      const YAML::Node pc = root[ph];
+      checkKeys(pc, {"Box", "Grains", "Seed", "Grain_list", "GB_min_distance"}, ph);
+      _poly.active = true;
+      const vector<double> box = readVec3(pc, "Box", ph);
+      for (int k = 0; k < 3; k++) {
+        if (box[k] <= 0.) fail(ph, "'Box' lengths must be > 0");
+        _poly.box[k] = box[k];
+      }
+      if (pc["Seed"]) _poly.seed = pc["Seed"].as<uint64_t>();
+      if (pc["GB_min_distance"]) _poly.gbMinDistance = readPositive(pc, "GB_min_distance", ph);
+      if (pc["Grains"] && pc["Grain_list"]) fail(ph, "give either 'Grains' (random) or 'Grain_list'");
+      if (pc["Grains"]) {
+        _poly.nGrains = pc["Grains"].as<int>();
+        if (_poly.nGrains < 1) fail(ph, "'Grains' must be >= 1");
+      } else if (pc["Grain_list"]) {
+        const YAML::Node gl = pc["Grain_list"];
+        if (!gl.IsSequence() || gl.size() == 0) fail(ph, "'Grain_list' must be a non-empty list");
+        for (size_t i = 0; i < gl.size(); i++) {
+          const string gw = ph + ": grain " + to_string(i + 1);
+          const YAML::Node gi = gl[i];
+          checkKeys(gi, {"Center", "Orientation", "Euler"}, gw);
+          Grain gr;
+          const bool hasC = (bool)gi["Center"];
+          if (hasC) {
+            const vector<double> c = readVec3(gi, "Center", gw);
+            for (int k = 0; k < 3; k++) gr.seed[k] = c[k];
+          }
+          if (gi["Orientation"] && gi["Euler"]) fail(gw, "give either 'Orientation' or 'Euler'");
+          const bool hasO = gi["Orientation"] || gi["Euler"];
+          if (gi["Orientation"]) gr.o = parseOrientation(gi["Orientation"], gw);
+          if (gi["Euler"]) {
+            const vector<double> e = readVec3(gi, "Euler", gw);
+            gr.o = orientationFromEuler(e[0], e[1], e[2]);
+          }
+          _poly.list.push_back(gr);
+          _poly.hasCenter.push_back(hasC);
+          _poly.hasOrientation.push_back(hasO);
         }
-        if (nn == 0.) fail(head, string("Orientation ") + ax[a] + " is zero");
-        for (int k = 0; k < 3; k++) _orient.R[a][k] = _orient.dir[a][k] / sqrt(nn);
-      }
-      const long (*d)[3] = _orient.dir;
-      for (int a = 0; a < 3; a++) {
-        const int b = (a + 1) % 3;
-        if (d[a][0]*d[b][0] + d[a][1]*d[b][1] + d[a][2]*d[b][2] != 0)
-          fail(head, string("Orientation ") + ax[a] + " and " + ax[b] + " are not orthogonal");
-      }
-      const long cz[3] = { d[0][1]*d[1][2] - d[0][2]*d[1][1], d[0][2]*d[1][0] - d[0][0]*d[1][2],
-                           d[0][0]*d[1][1] - d[0][1]*d[1][0] };
-      if (cz[0]*d[2][0] + cz[1]*d[2][1] + cz[2]*d[2][2] <= 0)
-        fail(head, "Orientation is left-handed: Z must be along X x Y");
-      _orient.active = true;
+      } else
+        fail(ph, "missing 'Grains' (number of random grains) or 'Grain_list'");
+      _nx = _ny = _nz = 0;
+    } else {
+      _nx         = require(g, "Nx", head).as<int>();
+      _ny         = require(g, "Ny", head).as<int>();
+      _nz         = require(g, "Nz", head).as<int>();
     }
-    _nx         = require(g, "Nx", head).as<int>();
-    _ny         = require(g, "Ny", head).as<int>();
-    _nz         = require(g, "Nz", head).as<int>();
     if (g["Method"]) _method = g["Method"].as<string>();
     if (_method != "loopons" && _method != "line")
       fail(head, "'Method' must be loopons or line");
@@ -161,16 +215,30 @@ void input::readInputFile()
     }
     if (g["Output_format"]) _outputFormat = g["Output_format"].as<string>();
 
-    const YAML::Node dislos = require(root, "dislocations", "top level");
-    if (!dislos.IsSequence() || dislos.size() == 0)
-      fail("dislocations", "must be a non-empty list");
+    // dislocations: required, except for a polycrystal (loops in grains: not yet supported)
+    YAML::Node dislos;
+    if (_poly.active) {
+      if (root["dislocations"])
+        fail("dislocations", "loops in a polycrystal are not supported yet (grain-local loops: next phase)");
+      dislos = YAML::Node(YAML::NodeType::Sequence);
+    } else {
+      dislos = require(root, "dislocations", "top level");
+      if (!dislos.IsSequence() || dislos.size() == 0)
+        fail("dislocations", "must be a non-empty list");
+    }
     _numberOfLoops = dislos.size();
 
     cout << "  Lattice        = " << latticeName(_lattice) << "  (" << _element << ", "
          << _mass << " Da)\n"
          << "  a0             = " << _a0 << " Ang\n"
-         << (_orient.active ? "  Periods        = " : "  Cells          = ")
-         << _nx << " x " << _ny << " x " << _nz << "\n"
+         << (_poly.active ? "  Polycrystal    = " : _orient.active ? "  Periods        = " : "  Cells          = ");
+    if (_poly.active)
+      cout << (_poly.list.empty() ? _poly.nGrains : (int)_poly.list.size()) << " grains, box "
+           << _poly.box[0] << " x " << _poly.box[1] << " x " << _poly.box[2] << " Ang, seed " << _poly.seed
+           << ", GB_min_distance " << _poly.gbMinDistance << " NN\n";
+    else
+      cout << _nx << " x " << _ny << " x " << _nz << "\n";
+    cout
          << "  Method         = " << _method
          << (_method == "line" ? "  (line integral, closed form)" : "  (Kroupa loopon sum)") << "\n";
     if (_method == "loopons")
@@ -347,6 +415,7 @@ int         input::getNumberOfAtoms()
 
 vector<double> input::getBoxLengths()
 {
+  if (_poly.active) return { _poly.box[0], _poly.box[1], _poly.box[2] };
   const int n[3] = { _nx, _ny, _nz };
   vector<double> L(3);
   for (int a = 0; a < 3; a++)
@@ -356,6 +425,11 @@ vector<double> input::getBoxLengths()
 
 string input::getOutputFileName()
 {
+  if (_poly.active) {
+    const int G = _poly.list.empty() ? _poly.nGrains : (int)_poly.list.size();
+    return "Poly_" + to_string(G) + "g_" + to_string(lround(_poly.box[0])) + "x"
+           + to_string(lround(_poly.box[1])) + "x" + to_string(lround(_poly.box[2])) + ".xyz";
+  }
   return "Geo_" + to_string(_nx) + "x" + to_string(_ny) + "x" + to_string(_nz)
          + "_with_loop.xyz";
 }

@@ -1,0 +1,13 @@
+# Periodic Voronoi polycrystal of copper: 12 random grains in a 20 nm cube (~650 k atoms).
+# Grain IDs: 'grain' column of the xyz file and Poly_12g_200x200x200_grains.txt.
+# The grain boundaries are not relaxed: minimise (and anneal) before MD.
+general:
+  Lattice: FCC
+  Element: Cu
+  a0: 3.615
+  Output_format: both
+
+polycrystal:
+  Box: [200, 200, 200]
+  Grains: 12
+  Seed: 7
