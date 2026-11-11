@@ -8,7 +8,7 @@
 | `none` | nothing (timing runs) |
 
 Files are written in the current directory. The sample has 2 · Nx · Ny · Nz atoms (BCC) or
-4 · Nx · Ny · Nz atoms (FCC), minus the atoms
+4 · Nx · Ny · Nz atoms (FCC) (with `Orientation`: atoms per cell × box volume / a0³), minus the atoms
 removed by vacancy loops and plus those added by interstitial loops (b · n ≠ 0, `Matter: auto`).
 The log prints the count. Added atoms come last in the file.
 

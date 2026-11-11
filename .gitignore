@@ -27,3 +27,4 @@ site/
 .cache/
 Code/tests/test_prismatic
 Code/tests/test_barnett
+Code/tests/test_orient

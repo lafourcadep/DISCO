@@ -222,17 +222,37 @@ int main(int argc, char** argv)
     }
 #endif
 
-    const double dx = nx*a0, dy = ny*a0, dz = nz*a0;
+    const Orientation&   orient = inputFile.getOrientation();
+    const vector<double> boxL   = inputFile.getBoxLengths();   // N * a0, or N * period along X/Y/Z
+    const double dx = boxL[0], dy = boxL[1], dz = boxL[2];
     const double dx2 = dx/2., dy2 = dy/2., dz2 = dz/2.;
     const vector<double> compress = {1., 1., 1.};
 
     cout << "\n--- Supercell ---\n";
     cout << "  " << latticeName(lattice) << ": " << nx << " x " << ny << " x " << nz
          << "  (a0 = " << a0 << " Ang)  |  Atoms: " << nbAtoms << "\n";
+    if (orient.active) {
+        const char* ax[3] = { "X", "Y", "Z" };
+        cout << "  Orientation:";
+        for (int a = 0; a < 3; a++)
+            cout << " " << ax[a] << " = [" << orient.dir[a][0] << " " << orient.dir[a][1] << " "
+                 << orient.dir[a][2] << "] (period " << boxL[a] / dim[a] << " Ang)";
+        cout << "\n";
+    }
     cout << "  Box: " << dx << " x " << dy << " x " << dz << " Ang\n\n";
 
     // ---- Generate the lattice ----
-    vector<vector<double>> atomPos = generateLattice(lattice, nx, ny, nz, a0);
+    vector<vector<double>> atomPos;
+    if (orient.active) {
+        const double L[3] = { dx, dy, dz };
+        atomPos = generateOrientedLattice(lattice, orient, L, a0);
+        if ((int)atomPos.size() != nbAtoms) {
+            cerr << "ERROR: oriented lattice has " << atomPos.size() << " atoms, expected " << nbAtoms
+                 << " (box not commensurate with the lattice)\n";
+            abort();
+        }
+    } else
+        atomPos = generateLattice(lattice, nx, ny, nz, a0);
     lap(string(latticeName(lattice)) + " lattice (CPU)");
 
     // ---- Build dislocation loops (host — only to generate loopon positions) ----
@@ -242,8 +262,17 @@ int main(int argc, char** argv)
     vector<BurgersClass> burgersClass(nbLoops);   // perfect / Frank / Shockley / other
     for (int i = 0; i < nbLoops; i++) {
         double d;
-        const vector<double> c = snapToMidPlane(inputFile.getCenter(i), inputFile.getN(i),
-                                                a0, nx, ny, nz, d, lattice);
+        // m, n, Side, Dir_1/2, Vertex_dir, Vertices: crystal frame; Center: lab frame
+        const double boxOrigin[3] = { -dx2, -dy2, -dz2 };   // a lattice site (box corner)
+        const vector<double> c = orient.active
+            ? snapToMidPlaneOriented(inputFile.getCenter(i), inputFile.getN(i), orient, boxOrigin,
+                                     a0, d, lattice)
+            : snapToMidPlane(inputFile.getCenter(i), inputFile.getN(i), a0, nx, ny, nz, d, lattice);
+        const vector<double> mL = rotateToLab(orient, inputFile.getM(i));
+        const vector<double> nL = rotateToLab(orient, inputFile.getN(i));
+        vector<double> sideL = rotateToLab(orient, inputFile.getSide(i));
+        if (orient.active && sideL.empty())   // crystal-frame default axis, rotated
+            sideL = rotateToLab(orient, defaultInPlaneAxis(inputFile.getM(i), inputFile.getN(i)));
         const string shape = inputFile.getShape(i);
         burgersClass[i] = classifyBurgers(lattice, inputFile.getM(i), inputFile.getN(i));
         {
@@ -276,28 +305,22 @@ int main(int argc, char** argv)
         }
         const bool isPolygon = (shape == "polygon" || shape == "hexagonal");
         vector< vector<double> > verts;
-        if (isPolygon)
-            verts = inputFile.getSides(i) > 0
-                  ? regularPolygon(inputFile.getSides(i), inputFile.getRadius(i),
-                                   inputFile.getSide(i), inputFile.getM(i), inputFile.getN(i))
-                  : inputFile.getVertices(i);
+        if (isPolygon) {
+            if (inputFile.getSides(i) > 0)
+                verts = regularPolygon(inputFile.getSides(i), inputFile.getRadius(i), sideL, mL, nL);
+            else
+                for (const vector<double>& v : inputFile.getVertices(i)) verts.push_back(rotateToLab(orient, v));
+        }
         loop l = isPolygon
-            ? loop(da, verts, inputFile.getCornerRadius(i),
-                   c, inputFile.getM(i), inputFile.getN(i),
-                   a0, compress, inputFile.getSide(i))
+            ? loop(da, verts, inputFile.getCornerRadius(i), c, mL, nL, a0, compress, sideL)
             : (shape == "rectangular")
-            ? loop(da,
-                   inputFile.getHalfM(i), inputFile.getHalfP(i), inputFile.getCornerRadius(i),
-                   c, inputFile.getM(i), inputFile.getN(i),
-                   a0, compress, inputFile.getSide(i))
+            ? loop(da, inputFile.getHalfM(i), inputFile.getHalfP(i), inputFile.getCornerRadius(i),
+                   c, mL, nL, a0, compress, sideL)
             : (shape == "parallelogram")
             ? loop(da, inputFile.getHalfM(i), inputFile.getHalfP(i),
-                   inputFile.getDir1(i), inputFile.getDir2(i),
-                   c, inputFile.getM(i), inputFile.getN(i),
-                   a0, compress)
-            : loop(da, inputFile.getRadius(i),
-                   c, inputFile.getM(i), inputFile.getN(i),
-                   a0, compress);
+                   rotateToLab(orient, inputFile.getDir1(i)), rotateToLab(orient, inputFile.getDir2(i)),
+                   c, mL, nL, a0, compress)
+            : loop(da, inputFile.getRadius(i), c, mL, nL, a0, compress);
         l.generateSurface();
         if (!lineMethod) l.generateLoopons();
         const int nSeg = lineMethod ? (int)l.polyline(segTol).size() : 0;
@@ -394,9 +417,14 @@ int main(int argc, char** argv)
                     const double sign = sd == 0 ? 1. : -1.;
                     const double v[3] = { sign*sl.b[0], sign*sl.b[1], sign*sl.b[2] };
                     if (burgersClass[l] == BurgersClass::FRANK) {
-                        const vector<double> nh = listLoop[l].getN();
-                        const double nhat[3] = { nh[0], nh[1], nh[2] };
-                        frankCopyShift(v, nhat, a0, shift[sd]);
+                        // crystal frame (lattice translations), then back to the lab
+                        const vector<double> nh = rotateToCrystal(orient, listLoop[l].getN());
+                        const vector<double> vc = rotateToCrystal(orient, { v[0], v[1], v[2] });
+                        const double nhat[3] = { nh[0], nh[1], nh[2] }, vcr[3] = { vc[0], vc[1], vc[2] };
+                        double out[3];
+                        frankCopyShift(vcr, nhat, a0, out);
+                        const vector<double> ol = rotateToLab(orient, { out[0], out[1], out[2] });
+                        for (int c = 0; c < 3; c++) shift[sd][c] = ol[c];
                     } else
                         for (int c = 0; c < 3; c++) shift[sd][c] = v[c];
                 }

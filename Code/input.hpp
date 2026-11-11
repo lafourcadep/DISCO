@@ -21,6 +21,7 @@ private:
   int    _nx, _ny, _nz;
   double _a0;
   Lattice _lattice;           // host lattice: BCC (default) | FCC
+  Orientation _orient;        // crystal directions of the box axes (identity if absent)
   std::string _element;       // species name written to the output files (default Ta)
   double _mass;               // atomic mass in the LAMMPS data file (Dalton)
   double _looponSize;  // Loopon grid step, same for every loop (Angstrom); 0 if unused
@@ -52,6 +53,8 @@ public:
 
   double              getA0();
   Lattice             getLattice();
+  const Orientation&  getOrientation() const { return _orient; }
+  std::vector<double> getBoxLengths();      // Angstrom: N_i * a0, or N_i * period along X/Y/Z
   std::string         getElement();
   double              getMass();
   std::vector<int>    getNumberOfCells();

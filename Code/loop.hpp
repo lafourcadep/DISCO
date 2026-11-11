@@ -133,4 +133,18 @@ std::vector<double> snapToMidPlane(const std::vector<double>& center,
                                    double a0, int nx, int ny, int nz,
                                    double& spacing, Lattice lattice = Lattice::BCC);
 
+// Same for an oriented crystal: n is in the crystal frame (integer Miller
+// indices), center and the result in the lab frame, and the lattice has a site
+// at the lab point `origin` (the box corner for generateOrientedLattice).
+std::vector<double> snapToMidPlaneOriented(const std::vector<double>& center,
+                                           const std::vector<double>& n,
+                                           const Orientation& o, const double origin[3],
+                                           double a0, double& spacing, Lattice lattice);
+
+// The in-plane axis the loop constructors use when none is given (m projected
+// on the plane, or n x e_k for m // n, e_k the axis of smallest |n_k|). For an
+// oriented crystal it is evaluated in the crystal frame and rotated, so shapes
+// keep their crystallographic orientation.
+std::vector<double> defaultInPlaneAxis(const std::vector<double>& m, const std::vector<double>& n);
+
 #endif

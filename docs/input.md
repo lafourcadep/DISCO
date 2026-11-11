@@ -38,7 +38,10 @@ general:
                                          #   at room temperature (e.g. Ni with BCC), or if Lattice is
                                          #   FCC and Element is left at its default (Ta)
   a0: <lattice_parameter>                # Å
-  Nx: <cells_x>                          # box = Nx × Ny × Nz cubic cells
+  Orientation: {X: [..], Y: [..], Z: [..]}  # optional: crystal directions of the box axes
+                                         #   (see "Oriented crystal"); default [100] [010] [001]
+  Nx: <cells_x>                          # box = Nx × Ny × Nz cubic cells, or with Orientation
+                                         #   Nx × Ny × Nz lattice periods along X, Y, Z
   Ny: <cells_y>
   Nz: <cells_z>
   Method: <line|loopons>                 # optional, default line (see "Field method")
@@ -142,7 +145,42 @@ dislocations:
     n: [1, 1, -1]
 ```
 
-The Python generators (`Examples/generators/`) write BCC inputs only.
+`Examples/generators/make_fcc_loops.py` writes FCC inputs (prismatic and Frank loops); see
+[Input generators](generators.md).
+
+### Oriented crystal
+
+`Orientation` gives the crystal directions of the box axes, for example the usual FCC dislocation
+setup:
+
+```yaml
+general:
+  Lattice: FCC
+  Element: Cu
+  a0: 3.615
+  Orientation: {X: [1, -1, 0], Y: [1, 1, -2], Z: [1, 1, 1]}   # (111) planes horizontal
+  Nx: 32            # periods along X: 32 × a0/√2
+  Ny: 18            # periods along Y: 18 × a0 √6 / 2
+  Nz: 13            # periods along Z: 13 × a0 √3
+```
+
+- X, Y, Z are integer directions, orthogonal and right-handed (Z along X × Y); otherwise the program
+  stops.
+- `Nx`, `Ny`, `Nz` count **lattice periods** along X, Y, Z: the shortest lattice translation along
+  each direction [uvw] (reduced). FCC: a0/2 · |uvw| if u + v + w is even, a0 |uvw| otherwise. BCC:
+  a0/2 · |uvw| if u, v, w are all odd, a0 |uvw| otherwise. The box is then exactly periodic. The log
+  prints each period.
+- **Frames.** Crystallographic vectors stay in the crystal frame: `m`, `n`, `Side`, `Dir_1`, `Dir_2`,
+  `Vertex_dir` and the `Vertices` offsets. `Center` is in the lab frame (box axes, origin at the box
+  centre). The default in-plane axis of a shape (no `Side` / `Vertex_dir`) is chosen in the crystal
+  frame, so a shape keeps its crystallographic orientation in any box.
+- Everything else (mid-plane snap, matter slab, Frank and Shockley rules, field) works as in the
+  cube-aligned box. Without `Orientation` the output is unchanged.
+
+Checked with OVITO for FCC (X=[1-10], Y=[11-2], Z=[111]) and BCC (X=[111], Y=[-110], Z=[-1-12]):
+PTM finds the requested orientation on every sampled atom of a perfect box, there are no defects on
+the periodic faces, and DXA finds each loop with its Burgers vector rotated into the box frame.
+Example: `Examples/fcc_oriented_loops.yaml`.
 
 ## Field method
 

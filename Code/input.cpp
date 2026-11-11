@@ -92,7 +92,7 @@ void input::readInputFile()
     const string head = "general";
     const YAML::Node g = require(root, head, "top level");
     checkKeys(g, {"a0", "Nx", "Ny", "Nz", "Loopon_size", "Output_format", "Method",
-                  "Segment_tolerance", "Lattice", "Element", "Mass"}, head);
+                  "Segment_tolerance", "Lattice", "Element", "Mass", "Orientation"}, head);
     _a0         = readPositive(g, "a0", head);
     if (g["Lattice"] && !parseLattice(g["Lattice"].as<string>(), _lattice))
       fail(head, "'Lattice' must be BCC or FCC");
@@ -115,6 +115,37 @@ void input::readInputFile()
       if (e->lattice != _lattice)
         cerr << "WARNING: Element " << _element << " is " << latticeName(e->lattice)
              << " at room temperature, but Lattice: " << latticeName(_lattice) << " was requested\n";
+    // Orientation: crystal directions (integer) of the box axes X, Y, Z; orthogonal,
+    // right-handed. Nx, Ny, Nz then count lattice periods along X, Y, Z.
+    if (g["Orientation"]) {
+      const YAML::Node o = g["Orientation"];
+      if (!o.IsMap()) fail(head, "'Orientation' must be a map {X: [..], Y: [..], Z: [..]}");
+      checkKeys(o, {"X", "Y", "Z"}, head + ": Orientation");
+      const char* ax[3] = { "X", "Y", "Z" };
+      for (int a = 0; a < 3; a++) {
+        const vector<double> v = readVec3(o, ax[a], head + ": Orientation");
+        double nn = 0.;
+        for (int k = 0; k < 3; k++) {
+          const long h = lround(v[k]);
+          if (fabs(v[k] - h) > 1e-9) fail(head, string("Orientation ") + ax[a] + " must be integer Miller indices");
+          _orient.dir[a][k] = h;
+          nn += double(h) * h;
+        }
+        if (nn == 0.) fail(head, string("Orientation ") + ax[a] + " is zero");
+        for (int k = 0; k < 3; k++) _orient.R[a][k] = _orient.dir[a][k] / sqrt(nn);
+      }
+      const long (*d)[3] = _orient.dir;
+      for (int a = 0; a < 3; a++) {
+        const int b = (a + 1) % 3;
+        if (d[a][0]*d[b][0] + d[a][1]*d[b][1] + d[a][2]*d[b][2] != 0)
+          fail(head, string("Orientation ") + ax[a] + " and " + ax[b] + " are not orthogonal");
+      }
+      const long cz[3] = { d[0][1]*d[1][2] - d[0][2]*d[1][1], d[0][2]*d[1][0] - d[0][0]*d[1][2],
+                           d[0][0]*d[1][1] - d[0][1]*d[1][0] };
+      if (cz[0]*d[2][0] + cz[1]*d[2][1] + cz[2]*d[2][2] <= 0)
+        fail(head, "Orientation is left-handed: Z must be along X x Y");
+      _orient.active = true;
+    }
     _nx         = require(g, "Nx", head).as<int>();
     _ny         = require(g, "Ny", head).as<int>();
     _nz         = require(g, "Nz", head).as<int>();
@@ -138,7 +169,8 @@ void input::readInputFile()
     cout << "  Lattice        = " << latticeName(_lattice) << "  (" << _element << ", "
          << _mass << " Da)\n"
          << "  a0             = " << _a0 << " Ang\n"
-         << "  Cells          = " << _nx << " x " << _ny << " x " << _nz << "\n"
+         << (_orient.active ? "  Periods        = " : "  Cells          = ")
+         << _nx << " x " << _ny << " x " << _nz << "\n"
          << "  Method         = " << _method
          << (_method == "line" ? "  (line integral, closed form)" : "  (Kroupa loopon sum)") << "\n";
     if (_method == "loopons")
@@ -306,7 +338,21 @@ double input::getSegmentTolerance() { return _segmentTolerance; }
 
 vector<int> input::getNumberOfCells() { return { _nx, _ny, _nz }; }
 int         input::getNumberOfLoops() { return _numberOfLoops; }
-int         input::getNumberOfAtoms() { return atomsPerCell(_lattice) * _nx * _ny * _nz; }
+int         input::getNumberOfAtoms()
+{
+  if (!_orient.active) return atomsPerCell(_lattice) * _nx * _ny * _nz;
+  const vector<double> L = getBoxLengths();
+  return (int)lround(atomsPerCell(_lattice) * L[0] * L[1] * L[2] / (_a0 * _a0 * _a0));
+}
+
+vector<double> input::getBoxLengths()
+{
+  const int n[3] = { _nx, _ny, _nz };
+  vector<double> L(3);
+  for (int a = 0; a < 3; a++)
+    L[a] = n[a] * (_orient.active ? latticePeriod(_lattice, _orient.dir[a], _a0) : _a0);
+  return L;
+}
 
 string input::getOutputFileName()
 {

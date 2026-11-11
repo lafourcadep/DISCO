@@ -115,9 +115,15 @@ BARN_BIN  = tests/test_barnett
 $(BARN_BIN): tests/test_barnett.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp $(PARENT)/barnett.hpp $(PARENT)/kroupa.hpp
 	$(CXX) -O2 -std=c++14 -I$(PARENT) -o $(BARN_BIN) tests/test_barnett.cpp $(PARENT)/loop.cpp
 
-test: $(TEST_BIN) $(SNAP_BIN) $(PRISM_BIN) $(BARN_BIN)
+ORIENT_BIN = tests/test_orient
+
+$(ORIENT_BIN): tests/test_orient.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp $(PARENT)/lattice.hpp
+	$(CXX) -O2 -std=c++14 -I$(PARENT) -o $(ORIENT_BIN) tests/test_orient.cpp $(PARENT)/loop.cpp
+
+test: $(TEST_BIN) $(SNAP_BIN) $(PRISM_BIN) $(BARN_BIN) $(ORIENT_BIN)
 	./$(TEST_BIN)
 	./$(SNAP_BIN)
+	./$(ORIENT_BIN)
 	./$(PRISM_BIN)
 	./$(BARN_BIN)
 

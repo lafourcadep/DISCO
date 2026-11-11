@@ -373,6 +373,51 @@ vector<double> snapToMidPlane(const vector<double>& center, const vector<double>
     return out;
 }
 
+// Reduce integer Miller indices to coprime ones (abort if not integer or zero)
+static void reduceMiller(const vector<double>& n, long h[3])
+{
+    for (int i = 0; i < 3; i++) {
+        h[i] = lround(n[i]);
+        if (fabs(n[i] - h[i]) > 1e-9) {
+            cerr << "ERROR: loop normal n must be integer Miller indices\n";
+            abort();
+        }
+    }
+    long g = 0;
+    for (int i = 0; i < 3; i++) {
+        long a = labs(h[i]);
+        while (a) { long t = g % a; g = a; a = t; }
+    }
+    if (g == 0) { cerr << "ERROR: loop normal n is zero\n"; abort(); }
+    for (int i = 0; i < 3; i++) h[i] /= g;
+}
+
+vector<double> snapToMidPlaneOriented(const vector<double>& center, const vector<double>& n,
+                                      const Orientation& o, const double origin[3],
+                                      double a0, double& spacing, Lattice lattice)
+{
+    long h[3];
+    reduceMiller(n, h);
+    const double norm = sqrt(double(h[0]*h[0] + h[1]*h[1] + h[2]*h[2]));
+    const vector<double> nh = rotateToLab(o, { h[0]/norm, h[1]/norm, h[2]/norm });
+    spacing = latticePlaneSpacing(lattice, h, a0);
+    const double s0 = origin[0]*nh[0] + origin[1]*nh[1] + origin[2]*nh[2];
+    const double s  = center[0]*nh[0] + center[1]*nh[1] + center[2]*nh[2];
+    const double sMid = s0 + (floor((s - s0) / spacing + 1e-9) + 0.5) * spacing;
+    vector<double> out(3);
+    for (int i = 0; i < 3; i++) out[i] = center[i] + (sMid - s) * nh[i];
+    return out;
+}
+
+vector<double> defaultInPlaneAxis(const vector<double>& m, const vector<double>& n)
+{
+    const double lm = sqrt(m[0]*m[0] + m[1]*m[1] + m[2]*m[2]);
+    const double ln = sqrt(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
+    vector<double> u, v;
+    defaultAxes({ m[0]/lm, m[1]/lm, m[2]/lm }, { n[0]/ln, n[1]/ln, n[2]/ln }, u, v);
+    return u;
+}
+
 // =============================================================================
 // generateSurface
 // dS = area of one grid cell: da^2 (square grid), da^2 sin(angle) for the

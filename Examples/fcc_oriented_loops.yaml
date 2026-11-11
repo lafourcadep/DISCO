@@ -1,0 +1,37 @@
+# FCC copper in the usual dislocation-MD orientation: (111) planes horizontal.
+#   X = [1-10], Y = [11-2], Z = [111]; Nx, Ny, Nz count lattice periods along X, Y, Z.
+# m, n (and Side, Dir_1/2, Vertex_dir) are crystal directions; Center is in the box frame.
+general:
+  Lattice: FCC
+  Element: Cu
+  a0: 3.615
+  Orientation: {X: [1, -1, 0], Y: [1, 1, -2], Z: [1, 1, 1]}
+  Nx: 32
+  Ny: 18
+  Nz: 13
+  Output_format: lammps
+
+dislocations:
+  - Shape: hexagonal            # interstitial Frank loop on the horizontal (111) plane
+    Circumradius: 16.0
+    Center: [-20, -20, -20]
+    m: [-2/3, -2/3, -2/3]
+    n: [1, 1, 1]
+  - Shape: parallelogram        # vacancy prismatic 1/2[1-10] rhombus, normal to X
+    Half_1: 12.0
+    Half_2: 12.0
+    Dir_1: [1, 1, 2]
+    Dir_2: [1, 1, -2]
+    Center: [20, 20, -20]
+    m: [1, -1, 0]
+    n: [1, -1, 0]
+  - Shape: circular             # glide loop 1/2[1-10] on (111)
+    Radius: 15.0
+    Center: [-20, 20, 15]
+    m: [1, -1, 0]
+    n: [1, 1, 1]
+  - Shape: circular             # Shockley loop (stable sense for n = [111])
+    Radius: 14.0
+    Center: [20, -20, 15]
+    m: [-1/3, -1/3, 2/3]
+    n: [1, 1, 1]
