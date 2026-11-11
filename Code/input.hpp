@@ -13,6 +13,7 @@
 
 #include "lattice.hpp"
 #include "polycrystal.hpp"
+#include "twin.hpp"
 
 class input {
 
@@ -24,6 +25,7 @@ private:
   Lattice _lattice;           // host lattice: BCC (default) | FCC
   Orientation _orient;        // crystal directions of the box axes (identity if absent)
   PolycrystalSpec _poly;      // polycrystal: block (inactive if absent)
+  std::vector<TwinSpec> _twins;   // twins: list (empty if absent)
   std::string _element;       // species name written to the output files (default Ta)
   double _mass;               // atomic mass in the LAMMPS data file (Dalton)
   double _looponSize;  // Loopon grid step, same for every loop (Angstrom); 0 if unused
@@ -59,6 +61,7 @@ public:
   Lattice             getLattice();
   const Orientation&  getOrientation() const { return _orient; }
   const PolycrystalSpec& getPolycrystal() const { return _poly; }
+  const std::vector<TwinSpec>& getTwins() const { return _twins; }
   std::vector<double> getBoxLengths();      // Angstrom: N_i * a0, or N_i * period along X/Y/Z
   std::string         getElement();
   double              getMass();

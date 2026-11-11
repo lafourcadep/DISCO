@@ -1,0 +1,36 @@
+# Copper single crystal with two coherent twin lamellae on the horizontal (111) planes and
+# three loops: a glide loop inside lamella 2 (m, n in the TWIN frame, clipped by its twin
+# boundaries), a glide loop in the matrix clipped at the first TB, and a Shockley loop inside
+# lamella 2. Thicknesses snap to multiples of 3 {111} planes (12 -> 12.52 A, 20 -> 18.78 A).
+general:
+  Lattice: FCC
+  Element: Cu
+  a0: 3.615
+  Orientation: {X: [1, -1, 0], Y: [1, 1, -2], Z: [1, 1, 1]}
+  Nx: 24
+  Ny: 14
+  Nz: 12
+  Output_format: both
+twins:
+  - n: [1, 1, 1]
+    Center: [0, 0, -20]
+    Thickness: 12.0
+  - n: [1, 1, 1]
+    Center: [0, 0, 10]
+    Thickness: 20.0
+dislocations:
+  - Shape: circular              # inside lamella 2 (twin frame), inclined: clipped by its TBs
+    Radius: 14.0
+    Center: [-25, 0, 19]
+    m: [1, 0, 1]
+    n: [1, 1, -1]
+  - Shape: circular              # matrix below lamella 1, crossing TB 1: clipped there
+    Radius: 22.0
+    Center: [20, 0, -30]
+    m: [1, 0, -1]
+    n: [1, -1, 1]
+  - Shape: circular              # Shockley in lamella 2, parallel to the TBs (twin frame)
+    Radius: 12.0
+    Center: [20, 0, 19]
+    m: [-1/3, -1/3, 2/3]
+    n: [1, 1, 1]

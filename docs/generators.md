@@ -155,8 +155,16 @@ explicit `Grain_list` (Center + Bunge Euler), then adds loops until the nominal 
   Burgers vectors, `may_clip` when the bounding sphere leaves the grain cell). DISCO's
   `Poly_..._loops.txt` gives the final status of each loop and the density after clipping.
 
+- Twins: `--twins-per-grain λ` gives each grain a Poisson(λ) number of parallel lamellae (random
+  {111} / {112} variant), thickness lognormal (`--twin-thickness`, `--twin-sigma`), separated by at
+  least 3 planes plus up to `--twin-gap` Å; a stack stops where it would leave its grain. Loops whose
+  centre falls in a lamella are read by DISCO in the twin frame; the sidecar gives R_twin and each
+  loop's approximate region. `--loops 0` writes twins only.
+
 ```bash
 python3 make_polycrystal_loops.py                                  # Cu, 8 grains, 1e16 m^-2
+python3 make_polycrystal_loops.py --twins-per-grain 1.5 --twin-thickness 15 --density 2e16
+python3 make_polycrystal_loops.py --twins-per-grain 2 --loops 0    # twins only
 python3 make_polycrystal_loops.py --grains 12 --box 200 --density 5e16 --seed 5
 python3 make_polycrystal_loops.py --kinds glide:1,frank:1 --size 25 --type interstitial
 python3 make_polycrystal_loops.py --lattice BCC --kinds glide:2,prismatic:1

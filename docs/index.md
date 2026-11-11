@@ -19,7 +19,8 @@ CPU (OpenMP).
 
 - BCC or FCC lattice of `Nx × Ny × Nz` cubic cells, any lattice parameter and element, or an
   oriented crystal (`Orientation`: any orthogonal X, Y, Z crystal directions), or a periodic
-  Voronoi polycrystal (`polycrystal:` block) with loops in grains, clipped at the grain boundaries
+  Voronoi polycrystal (`polycrystal:` block) with loops in grains, clipped at the grain boundaries;
+  coherent twin lamellae (`twins:`) in grains or oriented crystals
   (see [Input file](input.md#lattice)).
 - Any number of loops: circles, rectangles (optionally rounded, optionally rotated in their plane),
   parallelograms and convex polygons such as hexagons (optionally rounded), on any plane `n` with

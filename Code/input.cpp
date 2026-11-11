@@ -121,7 +121,7 @@ void input::readInputFile()
 
   try {
     const YAML::Node root = YAML::LoadFile(_name);
-    checkKeys(root, {"general", "dislocations", "polycrystal"}, "top level");
+    checkKeys(root, {"general", "dislocations", "polycrystal", "twins"}, "top level");
 
     const string head = "general";
     const YAML::Node g = require(root, head, "top level");
@@ -215,12 +215,39 @@ void input::readInputFile()
     }
     if (g["Output_format"]) _outputFormat = g["Output_format"].as<string>();
 
-    // dislocations: required, except for a polycrystal (loops in grains: not yet supported)
+    // twins: coherent twin lamellae (twin.hpp), in grains or in an oriented single crystal
+    if (root["twins"]) {
+      const YAML::Node tl = root["twins"];
+      if (!tl.IsSequence() || tl.size() == 0) fail("twins", "must be a non-empty list");
+      const int nG = _poly.list.empty() ? _poly.nGrains : (int)_poly.list.size();
+      for (size_t i = 0; i < tl.size(); i++) {
+        const string tw = "twin " + to_string(i + 1);
+        const YAML::Node ti = tl[i];
+        checkKeys(ti, {"Grain", "n", "Center", "Thickness"}, tw);
+        TwinSpec sp;
+        if (_poly.active) {
+          const int gk = require(ti, "Grain", tw).as<int>();
+          if (gk < 1 || gk > nG) fail(tw, "'Grain' must be between 1 and " + to_string(nG));
+          sp.grain = gk - 1;
+        } else if (ti["Grain"])
+          fail(tw, "'Grain' needs a polycrystal block");
+        sp.n = readVec3(ti, "n", tw);
+        if (!isTwinPlane(_lattice, sp.n))
+          fail(tw, string("'n' must be a twin plane: ") + (_lattice == Lattice::FCC ? "{111} in FCC" : "{112} in BCC"));
+        sp.center = readVec3(ti, "Center", tw);
+        sp.thickness = readPositive(ti, "Thickness", tw);
+        _twins.push_back(sp);
+      }
+    }
+
+    // dislocations: required, except for a polycrystal or a twinned crystal
     YAML::Node dislos;
     if (_poly.active) {
       // loops in grains (Grain: k): optional for a polycrystal
       dislos = root["dislocations"] ? root["dislocations"] : YAML::Node(YAML::NodeType::Sequence);
       if (!dislos.IsSequence()) fail("dislocations", "must be a list");
+    } else if (!_twins.empty() && !root["dislocations"]) {
+      dislos = YAML::Node(YAML::NodeType::Sequence);     // twins only
     } else {
       dislos = require(root, "dislocations", "top level");
       if (!dislos.IsSequence() || dislos.size() == 0)

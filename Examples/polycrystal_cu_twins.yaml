@@ -1,0 +1,32 @@
+# Copper polycrystal (8 random grains, Seed 7) with three twin lamellae (two parallel ones in
+# grain 3, one in grain 4) and a glide loop inside the first lamella of grain 3, given in the
+# twin frame. Lamellae span their grain and end at the GBs.
+general:
+  Lattice: FCC
+  Element: Cu
+  a0: 3.615
+  Output_format: xyz
+polycrystal:
+  Box: [120, 120, 120]
+  Grains: 8
+  Seed: 7
+twins:
+  - Grain: 3
+    n: [1, 1, 1]
+    Center: [-12.307, -22.977, 39.860]
+    Thickness: 10.0
+  - Grain: 3
+    n: [-1, -1, -1]
+    Center: [-19.6827, -36.2973, 59.6884]
+    Thickness: 8.0
+  - Grain: 4
+    n: [1, -1, 1]
+    Center: [43.985, -27.887, 14.467]
+    Thickness: 15.0
+dislocations:
+  - Grain: 3                     # inside twin lamella 1 of grain 3 (twin frame)
+    Shape: circular
+    Radius: 10.0
+    Center: [-10.5364, -19.7797, 35.1014]
+    m: [1, 0, 1]
+    n: [1, 1, -1]

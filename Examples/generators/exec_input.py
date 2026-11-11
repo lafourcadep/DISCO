@@ -367,6 +367,15 @@ def write_yaml(path, general, loops, header_lines=()):
         for gr in pc["grains"]:
             lines.append(f"    - {{Center: [{', '.join(_g(x) for x in gr['center'])}], "
                          f"Euler: [{', '.join(f'{x:.12g}' for x in gr['euler'])}]}}")
+    if general.get("twins"):    # coherent twin lamellae (DISCO twins: block)
+        lines += ["", "twins:"]
+        for t in general["twins"]:
+            lines.append(f"  - {{Grain: {int(t['grain']) + 1}, n: {_vec(t['n'])}, "
+                         f"Center: [{', '.join(_g(x) for x in t['center'])}], Thickness: {_g(t['thickness'])}}}")
+    if not loops:
+        with open(path, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        return
     lines += ["", "dislocations:"]
     for l in loops:
         lines.append(f"  - Shape: {l['shape']}")

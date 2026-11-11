@@ -29,6 +29,7 @@
 #include "backend.hpp"
 #include "prismatic.hpp"
 #include "polycrystal.hpp"
+#include "twin.hpp"
 
 using namespace std;
 
@@ -286,6 +287,62 @@ int main(int argc, char** argv)
         atomPos = generateLattice(lattice, nx, ny, nz, a0);
     lap(poly.active ? string("Polycrystal (CPU)") : string(latticeName(lattice)) + " lattice (CPU)");
 
+    // ---- Twin lamellae (twin.hpp): atoms of layers 1..m-1 moved to the mirror lattice ----
+    const double boxLen[3] = { dx, dy, dz };
+    vector<Twin> twins;
+    vector<int> atomTwin;                   // 0 = matrix, t+1 = lamella t (empty without twins)
+    if (!inputFile.getTwins().empty()) {
+        atomTwin.assign(atomPos.size(), 0);
+        const double boxCorner[3] = { -dx2, -dy2, -dz2 };
+        cout << "\n--- Twin lamellae ---\n"
+             << "  Twin  grain  plane (crystal)   first TB moved   m  thickness (Ang)   atoms moved\n";
+        for (const TwinSpec& sp : inputFile.getTwins()) {
+            const bool inGrain = sp.grain >= 0;
+            const double* seed = inGrain ? polyGrains[sp.grain].seed : nullptr;
+            double snap = 0.;
+            Twin t = makeTwin(sp, lattice, a0, inGrain ? polyGrains[sp.grain].o : orient,
+                              inGrain ? polyGrains[sp.grain].seed : boxCorner, seed, boxLen, snap);
+            // lamellae of one grain (or of the crystal) must be parallel and disjoint
+            for (size_t k = 0; k < twins.size(); k++) {
+                const Twin& o2 = twins[k];
+                if (o2.grain != t.grain) continue;
+                const double c = t.nLab[0]*o2.nLab[0] + t.nLab[1]*o2.nLab[1] + t.nLab[2]*o2.nLab[2];
+                if (fabs(fabs(c) - 1.) > 1e-9) {
+                    cerr << "ERROR in twins: twins " << k+1 << " and " << twins.size()+1
+                         << " are in the same grain but not parallel (not supported)\n";
+                    abort();
+                }
+                // o2's lamella as a layer interval of t (both TBs of o2 must lie outside [0, m])
+                bool clash = false;
+                for (int b = 0; b <= o2.m; b++) {
+                    double x[3];
+                    for (int q = 0; q < 3; q++) x[q] = o2.O[q] + b * o2.d * o2.nLab[q];
+                    const long j = twinLayer(t, x, seed, boxLen);
+                    if (j >= -1 && j <= t.m + 1) clash = true;
+                }
+                double x0[3];
+                for (int q = 0; q < 3; q++) x0[q] = t.O[q];
+                const long jo = twinLayer(o2, x0, seed, boxLen);
+                if (jo >= -1 && jo <= o2.m + 1) clash = true;
+                if (clash) {
+                    cerr << "ERROR in twins: twins " << k+1 << " and " << twins.size()+1
+                         << " overlap or touch (keep at least one matrix layer between them)\n";
+                    abort();
+                }
+            }
+            applyTwin(t, (int)twins.size(), atomPos, atomGrain, atomTwin, seed, boxLen);
+            cout << "  " << setw(4) << twins.size() + 1 << "  " << setw(5) << (inGrain ? to_string(sp.grain + 1) : string("-"))
+                 << "  (" << t.h[0] << " " << t.h[1] << " " << t.h[2] << ")" << setw(14) << snap << " Ang  "
+                 << setw(3) << t.m << "  " << setw(10) << t.m * t.d << " (asked " << sp.thickness << ")  "
+                 << setw(10) << t.atomsMoved << "\n";
+            if (t.atomsMoved == 0)
+                cerr << "WARNING: twin " << twins.size() + 1 << " moves no atom: its lamella lies outside "
+                     << (inGrain ? "grain " + to_string(sp.grain + 1) : string("the crystal")) << "\n";
+            twins.push_back(t);
+        }
+        lap("Twin lamellae (CPU)");
+    }
+
     // ---- Build dislocation loops (host — only to generate loopon positions) ----
     vector<loop> listLoop;
     listLoop.reserve(nbLoops);
@@ -293,7 +350,8 @@ int main(int argc, char** argv)
     vector<BurgersClass> burgersClass(nbLoops);   // perfect / Frank / Shockley / other
     vector<int> loopInput;                  // kept loop -> input index (skipped loops removed)
     vector<Orientation> loopOrient;         // kept loop -> crystal frame (box or grain)
-    struct LoopReport { int input, grain; string status; double area0, area1; long atoms; };
+    struct LoopReport { int input, grain; string status; double area0, area1; long atoms; int region; };
+    vector<int> loopRegion;                 // kept loop -> 0 matrix, t+1 inside twin lamella t
     vector<LoopReport> loopReport;          // polycrystal: one line per input loop
     const double boxL3[3] = { dx, dy, dz };
     const int nbInputLoops = nbLoops;
@@ -302,7 +360,7 @@ int main(int argc, char** argv)
         // m, n, Side, Dir_1/2, Vertex_dir, Vertices: crystal frame (box, or grain k);
         // Center: lab frame
         const int gk = inputFile.getGrain(i);
-        const Orientation& lo = gk >= 0 ? polyGrains[gk].o : orient;
+        const double* seedK = gk >= 0 ? polyGrains[gk].seed : nullptr;
         vector<double> cIn = inputFile.getCenter(i);
         if (gk >= 0)    // unwrap around the grain seed: its lattice is continuous there
             for (int k = 0; k < 3; k++) {
@@ -310,12 +368,18 @@ int main(int argc, char** argv)
                 r -= boxL3[k] * floor(r / boxL3[k] + 0.5);
                 cIn[k] = polyGrains[gk].seed[k] + r;
             }
+        // Twin-aware loops: inside lamella t the crystal frame is the twin's (m, n, ... are
+        // given in the twin frame) and the planes are the twin lattice's (origin on its TB)
+        const int region = twins.empty() ? 0 : twinRegion(twins, gk, cIn.data(), seedK, boxLen);
+        const Orientation& lo = region > 0 ? twins[region - 1].twin : (gk >= 0 ? polyGrains[gk].o : orient);
         const double boxOrigin[3] = { -dx2, -dy2, -dz2 };   // a lattice site (box corner)
-        vector<double> c = gk >= 0
-            ? snapToMidPlaneOriented(cIn, inputFile.getN(i), lo, polyGrains[gk].seed, a0, d, lattice)
-            : orient.active
-            ? snapToMidPlaneOriented(cIn, inputFile.getN(i), orient, boxOrigin, a0, d, lattice)
-            : snapToMidPlane(cIn, inputFile.getN(i), a0, nx, ny, nz, d, lattice);
+        const double* snapOrigin = region > 0 ? twins[region - 1].O
+                                 : gk >= 0 ? polyGrains[gk].seed : orient.active ? boxOrigin : nullptr;
+        auto snapCentre = [&](const vector<double>& p) {
+            return snapOrigin ? snapToMidPlaneOriented(p, inputFile.getN(i), lo, snapOrigin, a0, d, lattice)
+                              : snapToMidPlane(p, inputFile.getN(i), a0, nx, ny, nz, d, lattice);
+        };
+        vector<double> c = snapCentre(cIn);
         const vector<double> mL = rotateToLab(lo, inputFile.getM(i));
         const vector<double> nL = rotateToLab(lo, inputFile.getN(i));
         vector<double> sideL = rotateToLab(lo, inputFile.getSide(i));
@@ -375,18 +439,45 @@ int main(int argc, char** argv)
         //   is zero, and unclipped its cut would leave a fault in another grain.
         string status = "kept";
         double area0 = 0., area1 = 0.;
-        if (gk >= 0) {
+        bool twinsHere = false;
+        for (const Twin& t : twins) twinsHere = twinsHere || t.grain == gk;
+        if (gk >= 0 || twinsHere) {
             const vector< vector<double> > P = l.polyline(segTol);
             area0 = polygonArea(P);
             area1 = area0;
-            const vector<HalfSpace> hs = cellHalfSpaces(polyGrains, boxL3, gk);
+            vector<HalfSpace> hs;
+            if (gk >= 0) hs = cellHalfSpaces(polyGrains, boxL3, gk);
+            // Twin boundaries of this grain (or crystal): keep the loop's side of each TB
+            for (size_t ti = 0; ti < twins.size(); ti++) {
+                const Twin& t = twins[ti];
+                if (t.grain != gk) continue;
+                double O[3] = { t.O[0], t.O[1], t.O[2] };
+                const double* n = t.nLab;
+                double sc = (c[0]-O[0])*n[0] + (c[1]-O[1])*n[1] + (c[2]-O[2])*n[2];
+                if (t.axis >= 0) {           // periodic: the TB images nearest to the loop
+                    const double Ln = t.layersPerBox * t.d;
+                    const double k = round((sc - 0.5 * t.m * t.d) / Ln);
+                    for (int q = 0; q < 3; q++) O[q] += k * Ln * n[q];
+                    sc -= k * Ln;
+                }
+                const double s0 = O[0]*n[0] + O[1]*n[1] + O[2]*n[2], s1 = s0 + t.m * t.d;
+                HalfSpace lowSide  = { { n[0], n[1], n[2] }, s0 };        // s <= TB 1
+                HalfSpace highSide = { { -n[0], -n[1], -n[2] }, -s1 };    // s >= TB 2
+                if (region == (int)ti + 1) {
+                    hs.push_back({ { -n[0], -n[1], -n[2] }, -s0 });       // s >= TB 1
+                    hs.push_back({ { n[0], n[1], n[2] }, s1 });           // s <= TB 2
+                } else if (sc < 0.5 * t.m * t.d)
+                    hs.push_back(lowSide);
+                else
+                    hs.push_back(highSide);
+            }
             bool inside = true;
             for (const auto& x : P) { const double xx[3] = { x[0], x[1], x[2] }; inside = inside && insideCell(hs, xx, 1e-6); }
             vector< vector<double> > Q = P;
             if (!inside) {
-                if (inputFile.getClip(i) == "none")
-                    cerr << "WARNING: loop " << i+1 << " leaves grain " << gk+1 << " and Clip: none: its cut"
-                         << " surface crosses the GB (fault in the neighbouring grain)\n";
+                if (inputFile.getClip(i) == "none" && gk >= 0)
+                    cerr << "WARNING: loop " << i+1 << " leaves its region of grain " << gk+1 << " and Clip: none:"
+                         << " its cut surface crosses a GB or TB (fault in the neighbouring crystal)\n";
                 else {
                     Q = clipPolygon(P, hs);
                     area1 = Q.empty() ? 0. : polygonArea(Q);
@@ -395,10 +486,12 @@ int main(int argc, char** argv)
             }
             const double bmag = l.getBurgers()[0];
             if (Q.empty() || area1 < 4. * bmag * bmag) {
-                cerr << "WARNING: loop " << i+1 << " (grain " << gk+1 << ") "
-                     << (Q.empty() ? "does not intersect its grain" : "keeps only a sliver of its grain")
+                cerr << "WARNING: loop " << i+1 << " (" << (gk >= 0 ? "grain " + to_string(gk+1) : string("crystal"))
+                     << (region > 0 ? ", twin " + to_string(region) : string("")) << ") "
+                     << (Q.empty() ? "does not intersect its region" : "keeps only a sliver of its region")
                      << " (area " << area1 << " of " << area0 << " Ang^2): skipped\n";
-                loopReport.push_back({ i, gk, Q.empty() ? "skipped_outside" : "skipped_sliver", area0, area1, 0 });
+                if (gk >= 0)
+                    loopReport.push_back({ i, gk, Q.empty() ? "skipped_outside" : "skipped_sliver", area0, area1, 0, region });
                 continue;
             }
             // Rebuild as an explicit polygon around its centroid (same mid-plane), with the
@@ -417,7 +510,7 @@ int main(int argc, char** argv)
                 c = { cg[0], cg[1], cg[2] };
                 l = loop(da, rel, 0., c, mL, nL, a0, compress, sideL);
             }
-            loopReport.push_back({ i, gk, status, area0, area1, 0 });
+            if (gk >= 0) loopReport.push_back({ i, gk, status, area0, area1, 0, region });
         }
         l.generateSurface();
         if (!lineMethod) l.generateLoopons();
@@ -426,9 +519,7 @@ int main(int argc, char** argv)
         const double nn = sqrt(nU[0]*nU[0] + nU[1]*nU[1] + nU[2]*nU[2]);
         double shift = 0.;
         {
-            const vector<double> cs = gk >= 0
-                ? snapToMidPlaneOriented(cIn, inputFile.getN(i), lo, polyGrains[gk].seed, a0, d, lattice)
-                : c;
+            const vector<double> cs = snapCentre(cIn);
             shift = fabs(((cs[0]-cIn[0])*nU[0] + (cs[1]-cIn[1])*nU[1] + (cs[2]-cIn[2])*nU[2]) / nn);
         }
         const double b = l.getBurgers()[0];
@@ -466,14 +557,15 @@ int main(int argc, char** argv)
         cout << "    centre : " << c[0] << " " << c[1] << " " << c[2]
              << " Ang  (moved " << shift << " Ang along n to the mid-plane,"
              << " plane spacing " << d << " Ang)\n";
-        if (gk >= 0 && status == "clipped")
-            cout << "    grain  : " << gk+1 << ", clipped at the GBs: area " << loopReport.back().area0
-                 << " -> " << loopReport.back().area1 << " Ang^2\n";
-        else if (gk >= 0)
-            cout << "    grain  : " << gk+1 << ", inside its grain\n";
+        if (gk >= 0 || region > 0 || twinsHere)
+            cout << "    region : " << (gk >= 0 ? "grain " + to_string(gk+1) : string("crystal"))
+                 << (region > 0 ? ", twin lamella " + to_string(region) + " (twin frame)" : string(", matrix"))
+                 << (status == "clipped" ? ", clipped at the GBs / TBs: area " + to_string(area0) + " -> "
+                                           + to_string(area1) + " Ang^2" : string(", inside its region")) << "\n";
         listLoop.push_back(l);
         loopInput.push_back(i);
         loopOrient.push_back(lo);
+        loopRegion.push_back(region);
     }
     nbLoops = (int)listLoop.size();
     if (nbLoops < nbInputLoops)
@@ -511,11 +603,15 @@ int main(int argc, char** argv)
             SlabResult sl = prismaticSlab(listLoop[l], planeSpacing[loopInput[l]],
                                           hAtomX, hAtomY, hAtomZ, dx, dy, dz);
             const int gl = inputFile.getGrain(loopInput[l]);
-            if (gl >= 0) {      // only atoms of the loop's grain (the slab can poke past a GB)
-                SlabResult f = sl;
+            if (gl >= 0 || !atomTwin.empty()) {   // only atoms of the loop's grain and twin region
+                SlabResult f = sl;                //   (the slab can poke past a GB or TB)
                 f.atoms.clear(); f.side.clear();
-                for (size_t q = 0; q < sl.atoms.size(); q++)
-                    if (atomGrain[sl.atoms[q]] == gl) { f.atoms.push_back(sl.atoms[q]); f.side.push_back(sl.side[q]); }
+                for (size_t q = 0; q < sl.atoms.size(); q++) {
+                    const int a = sl.atoms[q];
+                    if (gl >= 0 && atomGrain[a] != gl) continue;
+                    if (!atomTwin.empty() && atomTwin[a] != loopRegion[l]) continue;
+                    f.atoms.push_back(a); f.side.push_back(sl.side[q]);
+                }
                 sl = f;
             }
             const int    ns    = (int)sl.atoms.size();
@@ -736,11 +832,13 @@ int main(int argc, char** argv)
             << Hprime[0][0] << " " << Hprime[1][0] << " " << Hprime[2][0] << "  "
             << Hprime[0][1] << " " << Hprime[1][1] << " " << Hprime[2][1] << "  "
             << Hprime[0][2] << " " << Hprime[1][2] << " " << Hprime[2][2]
-            << "\" Properties=species:S:1:pos:R:3" << (atomGrain.empty() ? "" : ":grain:I:1") << "\n";
+            << "\" Properties=species:S:1:pos:R:3" << (atomGrain.empty() ? "" : ":grain:I:1")
+            << (atomTwin.empty() ? "" : ":twin:I:1") << "\n";
         out << fixed << setprecision(8);
         for (int k = 0; k < nbAtoms; k++) {
             out << element << " " << finalX[k] << " " << finalY[k] << " " << finalZ[k];
             if (!atomGrain.empty()) out << " " << atomGrain[k] + 1;
+            if (!atomTwin.empty()) out << " " << atomTwin[k];
             out << "\n";
         }
         out.close();
@@ -780,13 +878,14 @@ int main(int argc, char** argv)
         ofstream lout(lName);
         lout << "# DISCO polycrystal loops: input index, grain, kind, b (crystal, units of a0), n (crystal),\n"
              << "# b (lab, Ang), status, contour area before / after clipping (Ang^2), perimeter (Ang),"
-             << " atoms added (+) / removed (-)\n";
+             << " atoms added (+) / removed (-), region (0 matrix, t twin lamella t)\n";
         lout << setprecision(8);
         double perimTot = 0.;
         for (const auto& rp : loopReport) {
             const int i = rp.input;
             const vector<double> m = inputFile.getM(i), n = inputFile.getN(i);
-            const vector<double> bl = rotateToLab(polyGrains[rp.grain].o, { a0/2*m[0], a0/2*m[1], a0/2*m[2] });
+            const Orientation& ro = rp.region > 0 ? twins[rp.region - 1].twin : polyGrains[rp.grain].o;
+            const vector<double> bl = rotateToLab(ro, { a0/2*m[0], a0/2*m[1], a0/2*m[2] });
             double perim = 0.;
             for (int l = 0; l < nbLoops; l++)
                 if (loopInput[l] == i) {
@@ -801,13 +900,34 @@ int main(int argc, char** argv)
                  << "  " << m[0]/2 << " " << m[1]/2 << " " << m[2]/2 << "  " << n[0] << " " << n[1] << " " << n[2]
                  << "  " << bl[0] << " " << bl[1] << " " << bl[2] << "  "
                  << rp.status
-                 << "  " << rp.area0 << " " << rp.area1 << "  " << perim << "  " << rp.atoms << "\n";
+                 << "  " << rp.area0 << " " << rp.area1 << "  " << perim << "  " << rp.atoms
+                 << "  " << rp.region << "\n";
         }
         if (!loopReport.empty()) {
             cout << "Written " << lName << "\n";
             cout << "Dislocation density (kept loops, line length / volume): " << scientific << setprecision(3)
                  << perimTot / (dx * dy * dz) * 1e20 << " m^-2" << defaultfloat << setprecision(6) << "\n";
         }
+    }
+
+    // ---- Twin table ----
+    if (!twins.empty() && outFormat != "none") {
+        const string tName = outName.substr(0, outName.size()-4) + "_twins.txt";
+        ofstream tout(tName);
+        tout << "# DISCO twin lamellae: index (as in the xyz 'twin' column), grain (0: single crystal),\n"
+             << "# plane (crystal frame of the parent), unit normal (lab), first TB point (lab, box-centred;"
+             << " unwrapped around the grain seed), m (layers), thickness m d (Ang), atoms moved,\n"
+             << "# R_twin (rows: crystal directions of the lab x, y, z axes in the twin; lab = R_twin crystal)\n";
+        tout << setprecision(10);
+        for (size_t i = 0; i < twins.size(); i++) {
+            const Twin& t = twins[i];
+            tout << i + 1 << "  " << t.grain + 1 << "  " << t.h[0] << " " << t.h[1] << " " << t.h[2] << "  "
+                 << t.nLab[0] << " " << t.nLab[1] << " " << t.nLab[2] << "  " << t.O[0] << " " << t.O[1] << " "
+                 << t.O[2] << "  " << t.m << "  " << t.m * t.d << "  " << t.atomsMoved << " ";
+            for (int a = 0; a < 3; a++) for (int b = 0; b < 3; b++) tout << " " << t.twin.R[a][b];
+            tout << "\n";
+        }
+        cout << "Written " << tName << "\n";
     }
 
     if (outFormat != "xyz" && outFormat != "lammps" && outFormat != "both" && outFormat != "none")

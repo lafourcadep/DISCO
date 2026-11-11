@@ -22,11 +22,21 @@ DISCO clips every loop to its grain (a loop larger than its grain spans the grai
 and skips a loop that misses its grain; it writes the final list to Poly_..._loops.txt. Loops whose
 bounding sphere leaves the grain's cell are marked "may_clip" in the sidecar.
 
+Twins (--twins-per-grain lambda > 0): each grain gets a Poisson(lambda) number of coherent twin
+lamellae ({111} in FCC, {112} in BCC, random variant), all parallel in one grain, the first through a
+random point of the grain, the next ones further along the normal with a gap of at least 3 planes plus
+up to --twin-gap A; thickness lognormal (median --twin-thickness, log-sd --twin-sigma), snapped by
+DISCO to a multiple of 3 planes. A loop whose centre falls in a lamella is read by DISCO in the twin
+frame (the slip-system families are the same, so the random draw stays valid) and is clipped at the
+twin boundaries. The sidecar gives R_twin and, for each loop, its approximate region.
+
 Usage:
   python3 make_polycrystal_loops.py                                  # Cu, 8 grains, 1e16 m^-2
   python3 make_polycrystal_loops.py --grains 20 --box 300 --density 3e16 --seed 4
   python3 make_polycrystal_loops.py --kinds glide:1,frank:1 --size 25 --type interstitial
   python3 make_polycrystal_loops.py --lattice BCC --element Ta --a0 3.3024 --kinds glide:2,prismatic:1
+  python3 make_polycrystal_loops.py --twins-per-grain 1.5 --twin-thickness 15 --density 2e16
+  python3 make_polycrystal_loops.py --twins-per-grain 2 --loops 0                   # twins only
 """
 import argparse
 import itertools
@@ -172,6 +182,10 @@ def main():
     p.add_argument("--type", default="mixed", choices=["interstitial", "vacancy", "mixed"])
     p.add_argument("--gap", type=float, default=10.0, help="minimum distance between loops (A)")
     p.add_argument("--gb-min-distance", type=float, default=None)
+    p.add_argument("--twins-per-grain", type=float, default=0., help="mean number of twin lamellae per grain")
+    p.add_argument("--twin-thickness", type=float, default=15., help="median lamella thickness (A)")
+    p.add_argument("--twin-sigma", type=float, default=0.3, help="log-sd of the lamella thickness")
+    p.add_argument("--twin-gap", type=float, default=20., help="extra random gap between lamellae (A, max)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--format", default="lammps", choices=["xyz", "lammps", "both", "none"])
     a = p.parse_args()
@@ -199,6 +213,41 @@ def main():
         e = euler_from_R(R)
         grains.append(dict(center=list((rng.random(3) - 0.5) * box), euler=e, R=R_from_euler(e)))
     seeds = np.array([g["center"] for g in grains])
+
+    # twin lamellae: parallel stacks, one per grain (DISCO snaps the planes and thicknesses)
+    planes = D111 if lat == "FCC" else D112          # twin planes, one per +- pair
+    dplane = a0 / math.sqrt(3) if lat == "FCC" else a0 / math.sqrt(6)
+    twins = []
+    for k, g in enumerate(grains):
+        nt = rng.poisson(a.twins_per_grain) if a.twins_per_grain > 0 else 0
+        if nt == 0:
+            continue
+        nc = planes[rng.integers(len(planes))].astype(float)
+        nl = g["R"] @ (nc / np.linalg.norm(nc))
+        while True:                                   # a random point of grain k
+            p0 = (rng.random(3) - 0.5) * box
+            if int(np.argmin(np.linalg.norm(min_image(p0 - seeds, box), axis=1))) == k:
+                break
+        pos = 0.
+        for _ in range(nt):
+            th = a.twin_thickness * (math.exp(a.twin_sigma * rng.standard_normal()) if a.twin_sigma > 0 else 1.)
+            c = p0 + pos * nl
+            if int(np.argmin(np.linalg.norm(min_image(c - seeds, box), axis=1))) != k:
+                break                                 # the stack has left the grain: stop it there
+            twins.append(dict(grain=k, n=[int(x) for x in nc], center=list(min_image(c, box)), thickness=th,
+                              R_twin=g["R"] @ (2 * np.outer(nc, nc) / (nc @ nc) - np.eye(3)),
+                              n_lab=nl, start=c))
+            pos += th + 4.5 * dplane + 3 * dplane + rng.random() * a.twin_gap   # snap margin + >= 3 planes
+
+    def region_of(x, k):
+        """Approximate region (unsnapped planes): 0 matrix, t+1 lamella t."""
+        for t, tw in enumerate(twins):
+            if tw["grain"] != k:
+                continue
+            s = min_image(x - tw["start"], box) @ tw["n_lab"]
+            if 0 < s < tw["thickness"]:
+                return t + 1
+        return 0
 
     def grain_of(x):
         return int(np.argmin(np.linalg.norm(min_image(x - seeds, box), axis=1)))
@@ -240,15 +289,16 @@ def main():
                           may_clip=bool(cell_margin(c, k) < rr)))
     else:
         sys.exit("could not reach the requested density: lower --density / --size / --gap")
-    if not loops:
-        sys.exit("no loop placed")
+    if not loops and not twins:
+        sys.exit("no loop and no twin placed")
 
-    d_min = min(E.mid_spacing(l["n"], a0, lat) for l in loops)
+    d_min = min([E.mid_spacing(l["n"], a0, lat) for l in loops] or [dplane])
     general = E.general_block(a0, (0, 0, 0), 0.33 * d_min, a.format, lattice=lat, element=element, mass=a.mass)
     general["polycrystal"] = dict(box=list(box), gb_min_distance=a.gb_min_distance,
                                   grains=[dict(center=g["center"], euler=g["euler"]) for g in grains])
+    general["twins"] = [dict(grain=t["grain"], n=t["n"], center=t["center"], thickness=t["thickness"]) for t in twins]
     counts = {k: sum(l["kind"] == k for l in loops) for k in kinds}
-    header = [f"{lat} {element} polycrystal: {len(grains)} grains, {len(loops)} loops "
+    header = [f"{lat} {element} polycrystal: {len(grains)} grains, {len(twins)} twin lamellae, {len(loops)} loops "
               f"({', '.join(f'{v} {k}' for k, v in counts.items())}); generated by make_polycrystal_loops.py",
               f"nominal density {total / V * 1e20:.3e} m^-2 (before clipping at the GBs); median size {a.size} A",
               "m, n: crystal frame of the loop's grain; Center: box frame (origin at the box centre)"]
@@ -261,16 +311,22 @@ def main():
                 nominal_density_m2=total / V * 1e20,
                 grains=[dict(index=i + 1, center=g["center"], euler_deg=g["euler"], R=g["R"].tolist())
                         for i, g in enumerate(grains)],
+                twins=[dict(index=i + 1, grain=t["grain"] + 1, n=t["n"], center=t["center"],
+                            thickness_requested=t["thickness"], R_twin=t["R_twin"].tolist())
+                       for i, t in enumerate(twins)],
                 loops=[dict(index=i + 1, grain=l["grain"] + 1, kind=l["kind"], type=l["type"], shape=l["shape"],
                             size=reach(l), perimeter=perimeter(l), center=l["center"], m=l["m"], n=l["n"],
                             burgers_crystal_a0=[x / 2 for x in l["m"]],
-                            burgers_lab_A=list(grains[l["grain"]]["R"] @ (a0 / 2 * np.array(l["m"]))),
+                            region_approx=region_of(np.array(l["center"]), l["grain"]),
+                            burgers_lab_A=list((twins[region_of(np.array(l["center"]), l["grain"]) - 1]["R_twin"]
+                                                if region_of(np.array(l["center"]), l["grain"]) else
+                                                grains[l["grain"]]["R"]) @ (a0 / 2 * np.array(l["m"]))),
                             may_clip=l["may_clip"]) for i, l in enumerate(loops)],
                 note="DISCO clips loops at the GBs and skips loops that miss their grain; "
                      "see Poly_..._loops.txt for the final list and density")
     with open(os.path.splitext(a.output)[0] + ".json", "w") as f:
         json.dump(E._jsonable(side), f, indent=1)
-    print(f"wrote {a.output}: {len(grains)} grains, {len(loops)} loops "
+    print(f"wrote {a.output}: {len(grains)} grains, {len(twins)} twin lamellae, {len(loops)} loops "
           f"({', '.join(f'{v} {k}' for k, v in counts.items())}), nominal density {total / V * 1e20:.2e} m^-2, "
           f"{sum(l['may_clip'] for l in loops)} may be clipped")
 

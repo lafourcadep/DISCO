@@ -255,6 +255,62 @@ inline void frankCopyShift(const double v[3], const double nhat[3], double a0, d
     for (int i = 0; i < 3; i++) out[i] = v[i];   // not reached for a {111} normal
 }
 
+// -----------------------------------------------------------------------------
+// Twins
+// -----------------------------------------------------------------------------
+// Closest site of the cubic lattice (crystal frame, origin on a site) to the
+// crystal-frame point c. FCC: the D3 lattice in units of a0/2 (round, then fix
+// the parity of the coordinate sum on the worst-rounded coordinate); BCC: the
+// closer of the simple cubic lattice and its body-centred copy.
+inline void nearestLatticeSite(Lattice l, const double c[3], double a0, double out[3])
+{
+    if (l == Lattice::FCC) {
+        const double h = 0.5 * a0;
+        double u[3], r[3];
+        long sum = 0;
+        for (int i = 0; i < 3; i++) { u[i] = c[i] / h; r[i] = std::round(u[i]); sum += (long)r[i]; }
+        if (sum % 2 != 0) {
+            int k = 0;
+            for (int i = 1; i < 3; i++) if (std::fabs(u[i] - r[i]) > std::fabs(u[k] - r[k])) k = i;
+            r[k] += (u[k] > r[k]) ? 1. : -1.;
+        }
+        for (int i = 0; i < 3; i++) out[i] = r[i] * h;
+        return;
+    }
+    double A[3], B[3], dA = 0., dB = 0.;
+    for (int i = 0; i < 3; i++) {
+        A[i] = std::round(c[i] / a0) * a0;
+        B[i] = (std::round(c[i] / a0 - 0.5) + 0.5) * a0;
+        dA += (c[i] - A[i]) * (c[i] - A[i]);
+        dB += (c[i] - B[i]) * (c[i] - B[i]);
+    }
+    for (int i = 0; i < 3; i++) out[i] = (dA <= dB) ? A[i] : B[i];
+}
+
+// Coherent twin planes: {111} in FCC, {112} in BCC (n integer, any multiple)
+inline bool isTwinPlane(Lattice l, const std::vector<double>& n)
+{
+    long h[3];
+    for (int i = 0; i < 3; i++) {
+        h[i] = std::lround(n[i]);
+        if (std::fabs(n[i] - h[i]) > 1e-9) return false;
+    }
+    long g = 0;
+    for (int i = 0; i < 3; i++) { long a = labs(h[i]); while (a) { long t = g % a; g = a; a = t; } }
+    if (g == 0) return false;
+    long a[3] = { labs(h[0] / g), labs(h[1] / g), labs(h[2] / g) };
+    std::sort(a, a + 3);
+    return (l == Lattice::FCC) ? (a[0] == 1 && a[1] == 1 && a[2] == 1)
+                               : (a[0] == 1 && a[1] == 1 && a[2] == 2);
+}
+
+// 180 deg rotation about the unit vector u: 2 u u^T - I
+inline void halfTurn(const double u[3], double M[3][3])
+{
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++) M[i][j] = 2. * u[i] * u[j] - (i == j ? 1. : 0.);
+}
+
 // Standard atomic mass (Dalton) and room-temperature lattice of common BCC /
 // FCC metals; mass 0 if not listed
 struct ElementData { const char* name; double mass; Lattice lattice; };

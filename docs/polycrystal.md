@@ -91,6 +91,53 @@ dislocations:
 Example: `Examples/polycrystal_cu_loops.yaml` (one loop of each case above).
 For populations, see `make_polycrystal_loops.py` in [Input generators](generators.md).
 
+## Twin lamellae
+
+A top-level `twins:` list adds coherent twin lamellae, in grains or in an oriented single crystal:
+
+```yaml
+twins:
+  - Grain: 3                 # polycrystal: the grain (1-based); single crystal: omit
+    n: [1, 1, 1]             # twin plane, crystal frame of the grain: {111} FCC, {112} BCC
+    Center: [-12.3, -23.0, 39.9]   # box frame: a point on the first twin boundary (TB)
+    Thickness: 10.0          # Angstrom, snapped to a multiple of 3 planes (here 12.52 A)
+```
+
+- **Construction.** A coherent twin is the mirror image of the parent across a twin plane through
+  atoms. The first TB is moved onto the nearest atomic plane; the atoms of the next m − 1 layers are
+  moved, each layer by one in-plane vector (at most a0/√6 in FCC), onto the mirror lattice. No atom
+  is added or removed and there is no elastic field. The second TB (layer m) is also a coherent
+  mirror only if the two mirrors compose to a lattice translation: m must be a multiple of 3 for
+  FCC {111} and BCC {112}, and the thickness is snapped accordingly (minimum 3 planes).
+- **Extent.** A lamella spans its whole grain and ends at the GBs. In a single crystal it spans the
+  periodic box, so the twin plane must be normal to a box axis (use `Orientation`, e.g. Z = [111]).
+  Lamellae of one grain must be parallel and separated by at least one matrix layer.
+- **Twin frame.** The twin's crystal frame is the parent's turned by 180° about n (Σ3: 60° about
+  ⟨111⟩). A loop whose centre lies inside a lamella is read in the **twin frame** (`m`, `n`, `Side`, …
+  are twin-crystal directions) and snapped to the twin's planes. Every loop of a twinned grain (or
+  crystal) is clipped at the TBs like at the GBs, so its cut stays in its own crystal, and its
+  matter slab only takes atoms of its own region.
+- **BCC.** The pure-mirror {112} TB (reflection twin) puts atoms of layers ±1 at 2d = 0.816 a0 from
+  each other; relaxation turns it into the isosceles TB (shift a0/12 ⟨111⟩). Relax before MD.
+- Output: an xyz column `twin` (0 = matrix, t = lamella t), `<name>_twins.txt` (plane, normal,
+  TB point, m, thickness, atoms moved, R_twin), and a `region` column in `Poly_..._loops.txt`.
+
+Examples: `Examples/fcc_twin_lamella.yaml` (single crystal, with loops in and around the lamellae),
+`Examples/polycrystal_cu_twins.yaml`. For random lamellae in a polycrystal: `make_polycrystal_loops.py
+--twins-per-grain` ([Input generators](generators.md)).
+
+Checked with OVITO:
+
+- FCC single crystal (two lamellae, m = 6 and 9): exactly one HCP layer per TB (2688 atoms), all other
+  atoms FCC, lamella orientation = R_twin within 0.012°, 60.00° from the matrix, no DXA line. BCC (112),
+  m = 9: lamella 60.00° from the matrix, no DXA line (three non-BCC layers per unrelaxed reflection TB).
+- Polycrystals (3 hand-placed and 7 random lamellae): every lamella at 60.00° from its grain, atoms
+  outside lamellae unmoved, largest shift a0/√6. Where a lamella ends on an unrelaxed GB, DXA finds a
+  few short junction segments (about 36 Å in total for 3 lamellae).
+- Twin-aware loops: a glide and a Shockley loop inside a lamella are found with b = R_twin b_twin
+  (0.7° and 0.7°), a matrix loop clipped at a TB with b = R b (0.0°); in a polycrystal lamella
+  0.3° from R_twin b (70.6° from the grain-frame b). GPU fp32 = CPU within 4.3e-6 Å.
+
 ## Output
 
 - `Poly_<G>g_<Lx>x<Ly>x<Lz>.xyz` / `.lmp` (box lengths rounded to Å). The extended XYZ file has an

@@ -153,6 +153,12 @@ dislocations:
 A top-level `polycrystal:` block (box, number of grains or explicit grains) replaces `Nx`, `Ny`, `Nz`
 and `Orientation`; see [Polycrystals](polycrystal.md).
 
+### Twins
+
+A top-level `twins:` list adds coherent twin lamellae ({111} FCC, {112} BCC) to an oriented single
+crystal (twin plane normal to a box axis) or to polycrystal grains; loops inside a lamella use the
+twin frame. See [Polycrystals: Twin lamellae](polycrystal.md#twin-lamellae).
+
 ### Oriented crystal
 
 `Orientation` gives the crystal directions of the box axes, for example the usual FCC dislocation
