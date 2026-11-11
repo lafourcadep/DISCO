@@ -2,14 +2,16 @@
 
 - BCC slip systems read from Parameters/BCC.txt, in DANCE's own order (index 1..48),
   so the slip-system index written in the ground-truth sidecars is the one DANCE reports.
-- Python copies of the exec_cuda geometry rules (loop.cpp): mid-plane snap of the loop
-  centre, in-plane axes m, p = m x n, and the loopon grid (to predict loopon counts).
+- Python copies of the exec_cuda geometry rules (loop.cpp, lattice.hpp): mid-plane snap of
+  the loop centre (BCC or FCC planes), in-plane axes m, p = m x n, and the loopon grid (to
+  predict loopon counts).
 - Writers for the YAML input (exact key set accepted by input.cpp) and the JSON sidecar.
 
 Every length is in Angstrom, like in the exec_cuda input.
 """
 import json
 import math
+from fractions import Fraction
 import os
 import re
 import sys
@@ -110,28 +112,30 @@ def reduce_miller(n):
     return [x // g for x in n]
 
 
-def mid_spacing(n, a0=A0):
-    """Atomic-plane spacing of the family n (as snapToMidPlane in loop.cpp)."""
+def mid_spacing(n, a0=A0, lattice="BCC"):
+    """Atomic-plane spacing of the family n (latticePlaneSpacing in lattice.hpp):
+    BCC a0/|n| if h+k+l is even, FCC a0/|n| if h, k, l are all odd; else a0/(2|n|)."""
     h = reduce_miller(n)
     norm = math.sqrt(sum(x * x for x in h))
-    return a0 / norm if sum(h) % 2 == 0 else a0 / (2 * norm)
+    full = all(x % 2 for x in h) if lattice == "FCC" else sum(h) % 2 == 0
+    return a0 / norm if full else a0 / (2 * norm)
 
 
-def snap_center(center, n, a0, cells):
+def snap_center(center, n, a0, cells, lattice="BCC"):
     """Centre moved along n onto the mid-plane, exactly as snapToMidPlane in loop.cpp."""
     h = reduce_miller(n)
     nh = _unit(h)
-    sp = mid_spacing(h, a0)
+    sp = mid_spacing(h, a0, lattice)
     s0 = -0.5 * a0 * np.asarray(cells, float) @ nh
     s = np.asarray(center, float) @ nh
     s_mid = s0 + (math.floor((s - s0) / sp + 1e-9) + 0.5) * sp
     return np.asarray(center, float) + (s_mid - s) * nh
 
 
-def mid_plane_offset(s, n, a0, cells):
+def mid_plane_offset(s, n, a0, cells, lattice="BCC"):
     """Distance s >= 0 along n-hat moved down to the nearest mid-plane between atomic
     planes, so that faces at +s and -s are both left in place by snapToMidPlane."""
-    sp = mid_spacing(n, a0)
+    sp = mid_spacing(n, a0, lattice)
     ph = (-0.5 * a0 * np.asarray(cells, float) @ _unit(reduce_miller(n))) % sp
     s_mid = ph + (math.floor((s - ph) / sp - 0.5 + 1e-9) + 0.5) * sp
     if abs(((-s_mid - ph) / sp - 0.5) - round((-s_mid - ph) / sp - 0.5)) > 1e-6:
@@ -325,12 +329,28 @@ def _g(x):
     return f"{x:.10g}"
 
 
+def _vec(v):
+    """Miller-type vector for the YAML: integers, or exact fractions p/q (FCC partials,
+    e.g. a Frank m = 2/3 <111>), which input.cpp reads exactly."""
+    out = []
+    for x in v:
+        f = Fraction(float(x)).limit_denominator(12)
+        if abs(float(f) - float(x)) > 1e-9:
+            raise ValueError(f"vector component {x} is not a simple fraction")
+        out.append(str(f.numerator) if f.denominator == 1 else f"{f.numerator}/{f.denominator}")
+    return "[" + ", ".join(out) + "]"
+
+
 def write_yaml(path, general, loops, header_lines=()):
     """exec_cuda input with the exact key set accepted by input.cpp."""
     lines = [f"# {h}" if h else "#" for h in header_lines]
     if lines:
         lines.append("")
-    lines += ["general:", f"  a0: {general['a0']}", f"  Nx: {general['Nx']}", f"  Ny: {general['Ny']}",
+    lines.append("general:")
+    for key in ("Lattice", "Element", "Mass"):          # optional; BCC Ta when absent
+        if general.get(key) is not None:
+            lines.append(f"  {key}: {general[key]}")
+    lines += [f"  a0: {general['a0']}", f"  Nx: {general['Nx']}", f"  Ny: {general['Ny']}",
               f"  Nz: {general['Nz']}"]
     if general.get("Method"):
         lines.append(f"  Method: {general['Method']}")
@@ -360,8 +380,8 @@ def write_yaml(path, general, loops, header_lines=()):
             if l.get("side") is not None:
                 lines.append(f"    Side: [{', '.join(str(int(x)) for x in l['side'])}]")
         lines += [f"    Center: [{', '.join(_g(x) for x in l['center'])}]",
-                  f"    m: [{', '.join(str(int(x)) for x in l['m'])}]",
-                  f"    n: [{', '.join(str(int(x)) for x in l['n'])}]"]
+                  f"    m: {_vec(l['m'])}",
+                  f"    n: {_vec(l['n'])}"]
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
 
@@ -379,10 +399,12 @@ def _jsonable(x):
 
 
 def loop_record(bcc, loop, general):
-    """Per-loop ground truth for the sidecar."""
+    """Per-loop ground truth for the sidecar. bcc: load_bcc() table for the DANCE
+    Burgers type and slip-system index, or None (FCC: no DANCE table, both None)."""
     a0 = general["a0"]
+    lattice = general.get("Lattice") or "BCC"
     cells = (general["Nx"], general["Ny"], general["Nz"])
-    ty, idx = expected_type_and_sys(bcc, loop["m"], loop["n"])
+    ty, idx = expected_type_and_sys(bcc, loop["m"], loop["n"]) if bcc else (None, None)
     rec = dict(shape=loop["shape"])
     if loop["shape"] == "circular":
         rec["radius"] = loop["radius"]
@@ -399,7 +421,7 @@ def loop_record(bcc, loop, general):
         if loop.get("side") is not None:
             rec["side"] = list(loop["side"])
     rec.update(center_requested=list(loop["center"]),
-               center_snapped=list(snap_center(loop["center"], loop["n"], a0, cells)),
+               center_snapped=list(snap_center(loop["center"], loop["n"], a0, cells, lattice)),
                m=list(loop["m"]), n=list(loop["n"]), burgers_A=[a0 / 2 * c for c in loop["m"]],
                plane_family=plane_family(loop["n"]), expected_burgers_type=ty, expected_slip_system=idx,
                loopons=count_loopons(loop, general["Loopon_size"]))
@@ -422,10 +444,15 @@ def write_sidecar(path, bcc, general, loops, expected, extra=None, script=None):
         f.write(text + "\n")
 
 
-def general_block(a0, cells, loopon_size, fmt, method="line"):
+def general_block(a0, cells, loopon_size, fmt, method="line", lattice=None, element=None, mass=None):
     """general: block. Method: line (exact contour) is written explicitly; Loopon_size is
-    kept so that switching to Method: loopons gives the matching grid."""
+    kept so that switching to Method: loopons gives the matching grid. Lattice / Element /
+    Mass are written only when given (the BCC generators leave them out: BCC Ta)."""
     if isinstance(cells, int):
         cells = (cells, cells, cells)
-    return dict(a0=a0, Nx=cells[0], Ny=cells[1], Nz=cells[2], Method=method, Loopon_size=loopon_size,
-                Output_format=fmt)
+    g = dict(a0=a0, Nx=cells[0], Ny=cells[1], Nz=cells[2], Method=method, Loopon_size=loopon_size,
+             Output_format=fmt)
+    for key, val in (("Lattice", lattice), ("Element", element), ("Mass", mass)):
+        if val is not None:
+            g[key] = val
+    return g

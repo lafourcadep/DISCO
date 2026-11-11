@@ -12,6 +12,8 @@ Examples/generators/
   make_prismatic_dipole.py             rhombic prismatic dipole from 4 shear loops
   make_hexagonal_prismatic_dipole.py   hexagonal prismatic dipole from 6 shear loops
   make_prismatic_dipoles.py            N prismatic dipoles (rhombic or hexagonal) at random positions
+  make_prismatic_loops.py              BCC prismatic loops with added / removed atoms
+  make_fcc_loops.py                    FCC: perfect prismatic rhombi and / or Frank loops
 ```
 
 ## Conventions
@@ -23,6 +25,7 @@ Examples/generators/
   `--system N` is the position 1..48 in that file: 12 systems per ½⟨111⟩ Burgers vector, each
   listing 3 {110}, 3 {112} and 6 {123} planes. The same file and numbering are used by the DANCE
   analysis code, so `expected_slip_system` in the sidecar can be compared directly with what DANCE reports.
+  This applies to the BCC scripts. `make_fcc_loops.py` has no DANCE table, so these two fields are `null`.
 - **Lengths** are in Å, as in the input file. `--units a0` switches every length option to units of a0.
 - b = (a0/2) m. Rectangles have their sides along m (screw, `Half_m`) and along p = m × n (edge, `Half_p`).
 - DISCO moves every loop centre along n onto the nearest mid-plane between atomic planes
@@ -90,6 +93,48 @@ python3 make_prismatic_loops.py --b 1 1 1 --type vacancy --habit 110 -o vac110.y
 python3 make_prismatic_loops.py --shape hexagonal --radius 22 --corner-radius 2 -o hex.yaml
 python3 make_prismatic_loops.py --shape hexagonal --b 1 1 1 --vertex-dir 1 1 -2 -o hex110.yaml
 ```
+
+## `make_fcc_loops.py`: FCC prismatic and Frank loops
+
+Writes FCC samples (`Lattice: FCC`, `Element` Cu by default, a0 = 3.615 Å) with loops made by adding
+or removing atoms, so they survive thermal MD. Use it for one loop or for an irradiation-like
+population of interstitial and vacancy loops.
+
+- `--kind prismatic` (default): perfect b = ½⟨110⟩, loop plane normal to b ({110}), 2 atomic planes
+  added or removed. Exactly two {111} planes contain b, so the loop is a **rhombus** whose sides are
+  its intersections with them: ⟨112⟩ directions at 70.5° / 109.5° (a DISCO `parallelogram`). Each
+  side glides along b on its own {111} plane, so the loop moves rigidly along a parallelepiped glide
+  prism. This is the FCC counterpart of the hexagonal ½⟨111⟩ prism in BCC. `--shape circular` gives
+  a round loop on the same plane.
+- `--kind frank`: faulted b = a0/3⟨111⟩ on the {111} plane normal to b. The loop is sessile, with one
+  {111} layer added (extrinsic fault) or removed (intrinsic fault); see
+  [Faulted loops](input.md#faulted-loops-fcc). `--shape hexagonal` (default) or `triangular`, with
+  sides along ⟨110⟩ as in quenched and irradiated FCC metals, or `circular`.
+- `--kind mixed`: each loop is Frank with probability `--frank-fraction` (default 0.5), perfect
+  prismatic otherwise.
+- `--type interstitial | vacancy | mixed`. `--size`: rhombus side, polygon circumradius, or circle
+  radius (Å). `--b`: one Burgers direction (a ⟨110⟩ for prismatic, a ⟨111⟩ for Frank loops).
+- Placement as in `make_prismatic_loops.py`: random centres (`--seed`), `--gap` between bounding
+  spheres, and perfect loops of opposite type with the same b never on overlapping glide prisms.
+  Frank loops are sessile and only need `--gap`. Loops may cross the periodic boundary.
+- `--element`, `--mass`, `--a0` for another metal (e.g. `--element Ni --a0 3.52`).
+- The sidecar's `expected.loops[]` gives, per loop, the kind, type, Burgers vector (`1/2[1 1 0]`,
+  `1/3[1 1 1]`), the number of atomic planes, the nominal number of atoms added (ρ A |b·n̂|; the code's
+  count differs by the atoms cut by the contour), and the glide planes (prismatic) or the stacking
+  fault (Frank).
+
+```bash
+python3 make_fcc_loops.py                                          # 1 interstitial rhombus, side 25 Å
+python3 make_fcc_loops.py --count 8 --type mixed --seed 2          # 8 prismatic rhombi
+python3 make_fcc_loops.py --kind frank --shape triangular --type vacancy --size 20
+python3 make_fcc_loops.py --kind mixed --count 12 --type mixed --frank-fraction 0.5 --cells 60
+python3 make_fcc_loops.py --kind prismatic --b 1 -1 0 --size 30 --element Ni --a0 3.52
+```
+
+Checked with OVITO DXA (FCC) on 22 loops (single rhombus, 8 mixed rhombi, 3 vacancy Frank triangles,
+10 mixed Frank and prismatic loops): one loop per generated loop with its Burgers vector (½⟨110⟩ or
+⅓⟨111⟩) and no other segment, HCP fault layers inside the Frank loops only, and atom counts within
+the contour scatter of the sidecar value.
 
 ## Prismatic dipoles
 
@@ -211,4 +256,5 @@ numbers, b, centre, planes, side, separation and the centres of the two prismati
     - Prismatic dipole: two closed loops of opposite sign, normal ∥ b, with no screw part, plus their
       side length and position along b.
     - Several prismatic dipoles: 2N closed loops and `per_dipole[]`.
+    - FCC loops: `closed_loops`, `burgers_families` and `loops[]` (see `make_fcc_loops.py`).
 - Coordinates are those of the input file: origin at the box centre (see [Output files](output.md)).

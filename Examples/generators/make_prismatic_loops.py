@@ -16,7 +16,10 @@ Per loop:
           (mixed: random per loop);
   shape   --shape circular (radius --radius, A) or hexagonal (circumradius --radius,
           vertices along --vertex-dir, default the code's in-plane axis: a <110> for {111},
-          so the sides run along <112>); --corner-radius rounds the hexagon corners;
+          and a regular hexagon's sides are parallel to its vertex directions, so the sides
+          also run along <110>. For sides on the {110} glide prism of b (<112> sides) give a
+          <112> --vertex-dir, e.g. --b 1 1 1 --vertex-dir 1 1 -2); --corner-radius rounds the
+          hexagon corners;
   centre  random in the box (--seed). A loop is redrawn if its bounding sphere comes closer
           than --gap to another one (periodic minimum image) and, for two loops of OPPOSITE
           type with the same b direction, if their glide prisms overlap (lateral distance
