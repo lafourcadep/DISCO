@@ -1,0 +1,31 @@
+# FCC copper: faulted loops (Mishin Cu a0).
+#   1. interstitial Frank loop a0/3[-1-1-1] on (111): one {111} layer inserted, extrinsic fault
+#   2. vacancy Frank loop a0/3[111] on (111): one {111} layer removed, intrinsic fault
+#   3. Shockley loop a0/6[-1-12] on (111): intrinsic fault (this sense of b is the stable one
+#      for n = [111]; m = [1/3, 1/3, -2/3] would give AA stacking and a warning)
+# Fractions must be exact (p/q), not decimals.
+general:
+  Lattice: FCC
+  Element: Cu
+  a0: 3.615
+  Nx: 30
+  Ny: 30
+  Nz: 30
+  Output_format: both
+
+dislocations:
+  - Shape: hexagonal
+    Circumradius: 18.0
+    Center: [-25, -25, -25]
+    m: [-2/3, -2/3, -2/3]
+    n: [1, 1, 1]
+  - Shape: hexagonal
+    Circumradius: 18.0
+    Center: [25, 25, 25]
+    m: [2/3, 2/3, 2/3]
+    n: [1, 1, 1]
+  - Shape: circular
+    Radius: 14.0
+    Center: [-25, 25, 0]
+    m: [-1/3, -1/3, 2/3]
+    n: [1, 1, 1]

@@ -107,7 +107,7 @@ $(SNAP_BIN): tests/test_snap.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp $(PARENT)
 
 PRISM_BIN = tests/test_prismatic
 
-$(PRISM_BIN): tests/test_prismatic.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp $(PARENT)/prismatic.cpp $(PARENT)/prismatic.hpp $(PARENT)/kroupa.hpp
+$(PRISM_BIN): tests/test_prismatic.cpp $(PARENT)/loop.cpp $(PARENT)/loop.hpp $(PARENT)/prismatic.cpp $(PARENT)/prismatic.hpp $(PARENT)/kroupa.hpp $(PARENT)/lattice.hpp
 	$(CXX) -O2 -std=c++14 -I$(PARENT) -o $(PRISM_BIN) tests/test_prismatic.cpp $(PARENT)/loop.cpp $(PARENT)/prismatic.cpp
 
 BARN_BIN  = tests/test_barnett

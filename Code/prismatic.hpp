@@ -25,6 +25,12 @@
 //                  displacement is u(x) + sign(s) b: the copy lands on the
 //                  other lip of the cut, and originals + copies fill the gap
 //                  with perfect crystal (b is a lattice translation).
+//                  FCC Frank loop (b = a0/3<111>, not a translation): main.cpp
+//                  adds the in-plane Shockley shift of frankCopyShift
+//                  (lattice.hpp), so the inserted {111} layer takes the third
+//                  stacking position (extrinsic fault) instead of AA stacking.
+//                  A vacancy Frank loop needs nothing: removing one layer
+//                  leaves an intrinsic fault.
 // =============================================================================
 
 #include <vector>

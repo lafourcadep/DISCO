@@ -10,6 +10,9 @@
 //      (square polygon == rectangle, exact contour area, corner-radius clamp).
 //   5. FCC lattice: prismatic 1/2[110] on (110) (2 planes), mixed 1/2[101] on (111)
 //      (1 plane), a[001] on (001) (2 planes), same checks.
+//   6. FCC faulted loops: Frank a0/3<111> loops (1 plane), interstitial copies
+//      stacked as an extrinsic fault (frankCopyShift); classifyBurgers and the
+//      sense of Shockley loops (shockleyFaultIsStable).
 //
 //   make test
 // =============================================================================
@@ -172,6 +175,49 @@ static void checkPolygonGeometry()
     assert(fabs(v[0][0] - R / sqrt(2.)) < 1e-9 && fabs(v[0][1] + R / sqrt(2.)) < 1e-9 && fabs(v[0][2]) < 1e-9);
 }
 
+// Is p a site of the FCC lattice of generateLattice (N^3 cells, corner o = -A0 N/2)?
+static bool isFccSite(const double p[3], int N)
+{
+    vector<double> q(3);
+    for (int i = 0; i < 3; i++) q[i] = (p[i] + 0.5 * A0 * N) / (0.5 * A0);
+    return isLatticeTranslation(Lattice::FCC, { (double)lround(q[0]), (double)lround(q[1]), (double)lround(q[2]) })
+        && fabs(q[0] - lround(q[0])) < 1e-6 && fabs(q[1] - lround(q[1])) < 1e-6 && fabs(q[2] - lround(q[2])) < 1e-6;
+}
+
+// Interstitial Frank loop: each copy (perfect-lattice frame, before the field) sits
+// at the height of the layer X across the cut, so it must be neither on an X site
+// (repeat of X) nor straight over its source (AA): the third stacking position.
+static void checkFrankCopies(vector<double> m, vector<double> n, int N)
+{
+    double d;
+    const vector<double> c = snapToMidPlane({ 1.1, -0.7, 0.4 }, n, A0, N, N, N, d, lat);
+    loop lp(0.4, 15., c, m, n, A0, { 1., 1., 1. });
+    lp.generateSurface();
+    lp.generateLoopons();
+    assert(classifyBurgers(Lattice::FCC, m, n) == BurgersClass::FRANK);
+    const double L = N * A0;
+    const SlabResult sl = prismaticSlab(lp, d, latX, latY, latZ, L, L, L);
+    assert(sl.type == MatterType::INTERSTITIAL && sl.planes == 1 && !sl.atoms.empty());
+    const vector<double> nh = lp.getN();
+    const double nhat[3] = { nh[0], nh[1], nh[2] };
+    for (size_t k = 0; k < sl.atoms.size(); k++) {
+        const int a = sl.atoms[k];
+        const double v[3] = { sl.side[k]*sl.b[0], sl.side[k]*sl.b[1], sl.side[k]*sl.b[2] };
+        double w[3];
+        frankCopyShift(v, nhat, A0, w);
+        const double sv = (w[0]-v[0])*nhat[0] + (w[1]-v[1])*nhat[1] + (w[2]-v[2])*nhat[2];
+        assert(fabs(sv) < 1e-9);                                   // in-plane Shockley shift
+        assert(fabs(sqrt((w[0]-v[0])*(w[0]-v[0]) + (w[1]-v[1])*(w[1]-v[1]) + (w[2]-v[2])*(w[2]-v[2]))
+                    - A0 / sqrt(6.)) < 1e-9);
+        const double p[3]  = { latX[a] + w[0], latY[a] + w[1], latZ[a] + w[2] };
+        const double pv[3] = { p[0] - v[0], p[1] - v[1], p[2] - v[2] };   // copy brought to its source layer
+        assert(!isFccSite(p, N));      // not a repeat of the layer X across the cut
+        assert(!isFccSite(pv, N));     // not straight over its source (AA)
+    }
+    cout << "  FCC Frank interstitial m = (" << m[0] << " " << m[1] << " " << m[2] << "), n = (" << n[0] << " "
+         << n[1] << " " << n[2] << "): " << sl.atoms.size() << " copies on the third stacking position\n";
+}
+
 int main()
 {
     const int N = 24;
@@ -196,6 +242,40 @@ int main()
     checkHexagon({ -1, -1, 0 }, { 1, 1, 0 }, 18., 3., {}, N, MatterType::INTERSTITIAL);
     assert(!isLatticeTranslation(Lattice::FCC, { 1, 1, 1 }) && isLatticeTranslation(Lattice::FCC, { 1, -1, 0 }));
     assert(!isLatticeTranslation(Lattice::BCC, { 1, 1, 0 }) && isLatticeTranslation(Lattice::BCC, { 1, -1, 1 }));
+    // FCC faulted loops: Frank a0/3<111> (1 plane of d111 = a0/sqrt3)
+    const double t3 = 2. / 3.;
+    checkLoop({ t3, t3, t3 },    { 1, 1, 1 }, 18., N, MatterType::VACANCY);
+    checkLoop({ -t3, -t3, -t3 }, { 1, 1, 1 }, 18., N, MatterType::INTERSTITIAL);
+    checkFrankCopies({ -t3, -t3, -t3 }, { 1, 1, 1 }, N);
+    checkFrankCopies({ t3, -t3, t3 },   { -1, 1, -1 }, N);
+    checkFrankCopies({ t3, t3, -t3 },   { -1, -1, 1 }, N);
+    const double o3 = 1. / 3.;
+    assert(!isLatticeTranslation(Lattice::FCC, { t3, t3, t3 }));
+    assert(classifyBurgers(Lattice::FCC, { 1, -1, 0 }, { 1, 1, 1 }) == BurgersClass::PERFECT);
+    assert(classifyBurgers(Lattice::FCC, { t3, t3, t3 }, { 1, 1, 1 }) == BurgersClass::FRANK);
+    assert(classifyBurgers(Lattice::FCC, { t3, t3, t3 }, { 1, -1, 0 }) == BurgersClass::OTHER);   // not on {111}
+    assert(classifyBurgers(Lattice::FCC, { o3, o3, -2*o3 }, { 1, 1, 1 }) == BurgersClass::SHOCKLEY);
+    assert(classifyBurgers(Lattice::FCC, { o3, o3, -2*o3 }, { 1, -1, 1 }) == BurgersClass::OTHER); // b.n != 0
+    assert(classifyBurgers(Lattice::FCC, { 1, 1, 1 }, { 1, 1, 1 }) == BurgersClass::OTHER);
+    assert(classifyBurgers(Lattice::BCC, { t3, t3, t3 }, { 1, 1, 1 }) == BurgersClass::OTHER);
+    // Shockley sense (checked with OVITO CNA/DXA: the stable sense gives an HCP fault layer pair)
+    assert(!shockleyFaultIsStable({ o3, o3, -2*o3 },  { 1, 1, 1 }));
+    assert( shockleyFaultIsStable({ -o3, -o3, 2*o3 }, { 1, 1, 1 }));
+    assert( shockleyFaultIsStable({ o3, o3, -2*o3 },  { -1, -1, -1 }));
+    // Each {111} plane has 3 stable and 3 unstable Shockley vectors
+    for (const vector<double>& n : { vector<double>{ 1, 1, 1 }, vector<double>{ -1, 1, 1 }, vector<double>{ 1, -1, 1 } }) {
+        int stable = 0, all = 0;
+        for (int p = 0; p < 3; p++)
+            for (int sg = 0; sg < 8; sg++) {
+                vector<double> m(3);
+                const double base[3] = { o3, o3, 2*o3 };
+                for (int i = 0; i < 3; i++) m[(i + p) % 3] = ((sg >> i) & 1 ? -1. : 1.) * base[i];
+                if (classifyBurgers(Lattice::FCC, m, n) != BurgersClass::SHOCKLEY) continue;
+                all++;
+                stable += shockleyFaultIsStable(m, n);
+            }
+        assert(all == 6 && stable == 3);
+    }
     buildLattice(Lattice::BCC, N);
     checkPolygonGeometry();
     // Glide loop: no matter

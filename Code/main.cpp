@@ -110,7 +110,8 @@ static void writeLAMMPS(
 
     // Masses
     out << "\nMasses\n\n";
-    out << "1 " << setprecision(4) << mass << setprecision(8) << "  # " << element << "\n";
+    out << "1 " << defaultfloat << setprecision(10) << mass << fixed << setprecision(8)
+        << "  # " << element << "\n";
 
     // Atoms
     out << "\nAtoms  # atomic\n\n";
@@ -238,17 +239,40 @@ int main(int argc, char** argv)
     vector<loop> listLoop;
     listLoop.reserve(nbLoops);
     vector<double> planeSpacing(nbLoops);   // atomic-plane spacing of each loop normal
+    vector<BurgersClass> burgersClass(nbLoops);   // perfect / Frank / Shockley / other
     for (int i = 0; i < nbLoops; i++) {
         double d;
         const vector<double> c = snapToMidPlane(inputFile.getCenter(i), inputFile.getN(i),
                                                 a0, nx, ny, nz, d, lattice);
         const string shape = inputFile.getShape(i);
-        if (!isLatticeTranslation(lattice, inputFile.getM(i))) {
+        burgersClass[i] = classifyBurgers(lattice, inputFile.getM(i), inputFile.getN(i));
+        {
             const vector<double> m = inputFile.getM(i);
-            cerr << "WARNING: loop " << i+1 << ": b = a0/2 [" << m[0] << " " << m[1] << " " << m[2]
-                 << "] is not a translation of the " << latticeName(lattice) << " lattice"
-                 << (lattice == Lattice::FCC ? " (perfect FCC: m = <110>)" : " (perfect BCC: m = <111>)")
-                 << ": the cut surface leaves a fault\n";
+            switch (burgersClass[i]) {
+            case BurgersClass::PERFECT: break;
+            case BurgersClass::FRANK:
+                cout << "  Loop " << i+1 << ": Frank loop, b = a0/3<111> normal to its {111} plane:"
+                     << " stacking fault inside the contour (intrinsic if vacancy, extrinsic if"
+                     << " interstitial)\n";
+                break;
+            case BurgersClass::SHOCKLEY:
+                if (shockleyFaultIsStable(m, inputFile.getN(i)))
+                    cout << "  Loop " << i+1 << ": Shockley partial loop, b = a0/6<112> in its {111}"
+                         << " plane: intrinsic stacking fault inside the contour\n";
+                else
+                    cerr << "WARNING: loop " << i+1 << ": Shockley b = a0/2 [" << m[0] << " " << m[1]
+                         << " " << m[2] << "] has the wrong sense for n: the cut stacks the layer above"
+                         << " it straight over the layer below (AA), not an intrinsic fault; reverse m"
+                         << " (or n) for a stable Shockley loop\n";
+                break;
+            default:
+                cerr << "WARNING: loop " << i+1 << ": b = a0/2 [" << m[0] << " " << m[1] << " " << m[2]
+                     << "] is not a translation of the " << latticeName(lattice) << " lattice"
+                     << (lattice == Lattice::FCC
+                         ? " (perfect FCC: m = <110>; faulted: Frank 2/3<111> on {111}, Shockley 1/3<112> in {111})"
+                         : " (perfect BCC: m = <111>)")
+                     << ": the cut surface leaves a fault\n";
+            }
         }
         const bool isPolygon = (shape == "polygon" || shape == "hexagonal");
         vector< vector<double> > verts;
@@ -363,9 +387,23 @@ int main(int argc, char** argv)
                 for (int a : sl.atoms) removed[a] = 1;
                 dVolume -= area * sl.height;
             } else {
-                for (int k = 0; k < ns; k++)
-                    copies.push_back({ sl.atoms[k], { sl.side[k]*sl.b[0], sl.side[k]*sl.b[1],
-                                                      sl.side[k]*sl.b[2] } });
+                // Copy shift for each side of the cut: side * b, plus for a Frank loop the
+                // Shockley shift that stacks the inserted layer as an extrinsic fault
+                double shift[2][3];
+                for (int sd = 0; sd < 2; sd++) {
+                    const double sign = sd == 0 ? 1. : -1.;
+                    const double v[3] = { sign*sl.b[0], sign*sl.b[1], sign*sl.b[2] };
+                    if (burgersClass[l] == BurgersClass::FRANK) {
+                        const vector<double> nh = listLoop[l].getN();
+                        const double nhat[3] = { nh[0], nh[1], nh[2] };
+                        frankCopyShift(v, nhat, a0, shift[sd]);
+                    } else
+                        for (int c = 0; c < 3; c++) shift[sd][c] = v[c];
+                }
+                for (int k = 0; k < ns; k++) {
+                    const double* sh = shift[sl.side[k] > 0 ? 0 : 1];
+                    copies.push_back({ sl.atoms[k], { sh[0], sh[1], sh[2] } });
+                }
                 dVolume += area * sl.height;
             }
             cout << "  Loop " << l+1 << ": " << matterName(sl.type) << ", |b.n| = " << sl.height

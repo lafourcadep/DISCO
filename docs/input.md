@@ -34,6 +34,9 @@ general:
   Element: <symbol>                      # optional, default Ta: species name in the output files
   Mass: <mass>                           # optional (Dalton), LAMMPS Masses; default: standard mass
                                          #   of Element (common BCC / FCC metals), required otherwise
+                                         #   A warning is printed if Element is not of this Lattice
+                                         #   at room temperature (e.g. Ni with BCC), or if Lattice is
+                                         #   FCC and Element is left at its default (Ta)
   a0: <lattice_parameter>                # Å
   Nx: <cells_x>                          # box = Nx × Ny × Nz cubic cells
   Ny: <cells_y>
@@ -64,7 +67,8 @@ dislocations:
     Vertices: [[x, y, z], ...]  # polygon only, instead of Sides / Circumradius / Vertex_dir:
                              #   convex contour, offsets from Center in Å, in the plane, in order
     Center: [cx, cy, cz]     # Å, origin at the box centre (moved onto a mid-plane, see below)
-    m: [mx, my, mz]          # Burgers vector direction (integer Miller indices)
+    m: [mx, my, mz]          # Burgers vector b = (a0/2) m: integers, or exact fractions p/q
+                             #   for FCC partials (Frank [2/3, 2/3, 2/3], Shockley [1/3, 1/3, -2/3])
     n: [nx, ny, nz]          # loop-plane normal (integer Miller indices)
     Matter: auto             # optional, loops with b·n ≠ 0 only: auto (default) adds or removes
                              #   atoms, none applies the displacement field only
@@ -83,8 +87,34 @@ in Å and in units of |b|.
 
 The program warns when b = (a0/2) m is not a translation of the lattice (for example m = ⟨111⟩ in
 FCC): the cut surface of such a loop leaves a fault and the atoms added or removed by a prismatic
-loop would not restore the perfect crystal. Only perfect dislocations are built; FCC loops dissociate
-into Shockley partials when the sample is relaxed (energy minimization or MD), as expected.
+loop would not restore the perfect crystal. The two faulted FCC loops below are recognised and get
+an information line instead. Perfect FCC loops dissociate into Shockley partials when the sample is
+relaxed (energy minimization or MD), as expected.
+
+### Faulted loops (FCC)
+
+Write the fractional m as exact fractions (`2/3`, `-1/3`, …). A decimal such as `0.6667` is not
+accurate enough for the plane-count check of the matter slab, which stops the program.
+
+| Loop | m | n | Inside the contour |
+|---|---|---|---|
+| Frank, vacancy | ⅔⟨111⟩, m·n > 0 | ∥ m ({111}) | one {111} layer removed: intrinsic stacking fault |
+| Frank, interstitial | ⅔⟨111⟩, m·n < 0 | ∥ m ({111}) | one {111} layer inserted: extrinsic stacking fault |
+| Shockley | ⅓⟨112⟩, m·n = 0 | {111} containing m | glide loop: intrinsic stacking fault |
+
+- **Frank loops** (b = a0/3⟨111⟩, sessile) add or remove one {111} layer (`Matter: auto`). An
+  inserted layer cannot simply repeat its neighbour, as a perfect loop's copy at ±b does: that would
+  stack it straight over its source (AA). Each copy is therefore also shifted in the plane by the
+  Shockley vector that puts it on the third stacking position (…A **C** B C…, an extrinsic fault).
+- **Shockley loops** (b = a0/6⟨112⟩) have a sign rule. Across the cut, the +n side moves by −b, and
+  only one sense of b turns the layer above the cut into the next stacking position (intrinsic
+  fault). The other sense puts it straight over the layer below (AA), which is not a stable fault:
+  CNA shows no HCP layer and DXA finds no loop. On each {111} plane, three of the six ⅓⟨112⟩
+  vectors are stable. The program prints a warning for the wrong sense; reverse m (or n). For
+  n = [1 1 1], m = [-1/3, -1/3, 2/3] is stable and m = [1/3, 1/3, -2/3] is not.
+
+Example: `Examples/fcc_faulted_loops.yaml` (Cu: interstitial and vacancy Frank loops, one Shockley
+loop). DXA (FCC) finds ⅓⟨111⟩ Frank and ⅙⟨112⟩ Shockley loops, with HCP (fault) layers inside.
 
 Example (Cu, two glide loops on {111}):
 

@@ -2,6 +2,7 @@
 #define INPUT_CPP
 
 #include "input.hpp"
+#include <stdexcept>
 
 using namespace std;
 
@@ -41,11 +42,30 @@ static double readPositive(const YAML::Node& block, const string& key, const str
   return v;
 }
 
+// A number, or an exact fraction written "p/q" (e.g. m: [2/3, 2/3, 2/3] for a
+// Frank loop): 0.666667 is not accurate enough for the plane-count checks.
+static double readNumber(const YAML::Node& node, const string& key, const string& where)
+{
+  const string txt = node.as<string>();
+  const size_t slash = txt.find('/');
+  if (slash == string::npos) return node.as<double>();
+  try {
+    size_t endP = 0, endQ = 0;
+    const string ps = txt.substr(0, slash), qs = txt.substr(slash + 1);
+    const double p = stod(ps, &endP), q = stod(qs, &endQ);
+    if (endP != ps.size() || endQ != qs.size() || q == 0.) throw invalid_argument(txt);
+    return p / q;
+  } catch (const exception&) {
+    fail(where, "'" + key + "': cannot read '" + txt + "' as a number or a fraction p/q");
+  }
+  return 0.;
+}
+
 static vector<double> readVec3(const YAML::Node& block, const string& key, const string& where)
 {
   const YAML::Node v = require(block, key, where);
   if (!v.IsSequence() || v.size() != 3) fail(where, "'" + key + "' must be a list of 3 numbers");
-  return { v[0].as<double>(), v[1].as<double>(), v[2].as<double>() };
+  return { readNumber(v[0], key, where), readNumber(v[1], key, where), readNumber(v[2], key, where) };
 }
 
 void input::readInputFile()
@@ -86,6 +106,15 @@ void input::readInputFile()
       _mass = standardAtomicMass(_element);
       if (_mass <= 0.) fail(head, "no standard mass known for Element '" + _element + "': give 'Mass' (Dalton)");
     }
+    // Element and Lattice are independent keys: flag a combination that is not
+    // the element's room-temperature structure (allowed, e.g. for model studies)
+    if (!g["Element"] && _lattice != Lattice::BCC)
+      cerr << "WARNING: Lattice: " << latticeName(_lattice) << " without 'Element': the species"
+           << " defaults to Ta (BCC); set Element (and Mass) for your metal\n";
+    else if (const ElementData* e = findElement(_element))
+      if (e->lattice != _lattice)
+        cerr << "WARNING: Element " << _element << " is " << latticeName(e->lattice)
+             << " at room temperature, but Lattice: " << latticeName(_lattice) << " was requested\n";
     _nx         = require(g, "Nx", head).as<int>();
     _ny         = require(g, "Ny", head).as<int>();
     _nz         = require(g, "Nz", head).as<int>();
