@@ -218,9 +218,9 @@ void input::readInputFile()
     // dislocations: required, except for a polycrystal (loops in grains: not yet supported)
     YAML::Node dislos;
     if (_poly.active) {
-      if (root["dislocations"])
-        fail("dislocations", "loops in a polycrystal are not supported yet (grain-local loops: next phase)");
-      dislos = YAML::Node(YAML::NodeType::Sequence);
+      // loops in grains (Grain: k): optional for a polycrystal
+      dislos = root["dislocations"] ? root["dislocations"] : YAML::Node(YAML::NodeType::Sequence);
+      if (!dislos.IsSequence()) fail("dislocations", "must be a list");
     } else {
       dislos = require(root, "dislocations", "top level");
       if (!dislos.IsSequence() || dislos.size() == 0)
@@ -267,11 +267,11 @@ void input::readInputFile()
       int sides = 0;         // regular polygon; 0 = explicit Vertices
       vector< vector<double> > vertices;
       if (shape == "circular") {
-        checkKeys(dl, {"Shape", "Radius", "Center", "m", "n", "Matter"}, where);
+        checkKeys(dl, {"Shape", "Radius", "Center", "m", "n", "Matter", "Grain", "Clip"}, where);
         radius = readPositive(dl, "Radius", where);
         cout << "    Radius         = " << radius << " Ang\n";
       } else if (shape == "rectangular") {
-        checkKeys(dl, {"Shape", "Half_m", "Half_p", "Corner_radius", "Side", "Center", "m", "n", "Matter"}, where);
+        checkKeys(dl, {"Shape", "Half_m", "Half_p", "Corner_radius", "Side", "Center", "m", "n", "Matter", "Grain", "Clip"}, where);
         half_m   = readPositive(dl, "Half_m", where);
         half_p   = readPositive(dl, "Half_p", where);
         corner_r = require(dl, "Corner_radius", where).as<double>();  // 0 = sharp corners
@@ -283,7 +283,7 @@ void input::readInputFile()
           cout << "    Side           = " << side[0] << " " << side[1] << " " << side[2] << "\n";
         }
       } else if (shape == "parallelogram") {
-        checkKeys(dl, {"Shape", "Half_1", "Half_2", "Dir_1", "Dir_2", "Center", "m", "n", "Matter"}, where);
+        checkKeys(dl, {"Shape", "Half_1", "Half_2", "Dir_1", "Dir_2", "Center", "m", "n", "Matter", "Grain", "Clip"}, where);
         half_m = readPositive(dl, "Half_1", where);
         half_p = readPositive(dl, "Half_2", where);
         side   = readVec3(dl, "Dir_1", where);
@@ -297,10 +297,10 @@ void input::readInputFile()
         // "polygon" only, an explicit convex vertex list (Vertices)
         if (shape == "hexagonal")
           checkKeys(dl, {"Shape", "Circumradius", "Vertex_dir", "Corner_radius",
-                         "Center", "m", "n", "Matter"}, where);
+                         "Center", "m", "n", "Matter", "Grain", "Clip"}, where);
         else
           checkKeys(dl, {"Shape", "Sides", "Circumradius", "Vertex_dir", "Vertices", "Corner_radius",
-                         "Center", "m", "n", "Matter"}, where);
+                         "Center", "m", "n", "Matter", "Grain", "Clip"}, where);
         if (dl["Vertices"]) {
           if (dl["Sides"] || dl["Circumradius"] || dl["Vertex_dir"])
             fail(where, "'Vertices' excludes 'Sides', 'Circumradius' and 'Vertex_dir'");
@@ -377,6 +377,23 @@ void input::readInputFile()
 
       _listCenters.push_back(center);
       _listMatter.push_back(matter);
+
+      // Grain (polycrystal only, 1-based): the loop's crystal frame and the cell it is clipped to
+      const int nG = _poly.list.empty() ? _poly.nGrains : (int)_poly.list.size();
+      if (_poly.active) {
+        const int gk = require(dl, "Grain", where).as<int>();
+        if (gk < 1 || gk > nG) fail(where, "'Grain' must be between 1 and " + to_string(nG));
+        _listGrain.push_back(gk - 1);
+        string clip = "auto";
+        if (dl["Clip"]) clip = dl["Clip"].as<string>();
+        if (clip != "auto" && clip != "none") fail(where, "'Clip' must be auto or none");
+        _listClip.push_back(clip);
+        cout << "    Grain          = " << gk << "  (Clip: " << clip << ")\n";
+      } else {
+        if (dl["Grain"] || dl["Clip"]) fail(where, "'Grain' and 'Clip' need a polycrystal block");
+        _listGrain.push_back(-1);
+        _listClip.push_back("none");
+      }
       _listM.push_back(m);
       _listN.push_back(n);
       _listShapes.push_back(shape);
@@ -446,6 +463,8 @@ vector<double> input::getSide(int d)         { return _listSide[d]; }
 vector<double> input::getDir1(int d)         { return _listSide[d]; }
 vector<double> input::getDir2(int d)         { return _listDir2[d]; }
 string         input::getMatter(int d)       { return _listMatter[d]; }
+int            input::getGrain(int d)        { return _listGrain[d]; }
+string         input::getClip(int d)         { return _listClip[d]; }
 int            input::getSides(int d)        { return _listSides[d]; }
 vector< vector<double> > input::getVertices(int d) { return _listVertices[d]; }
 

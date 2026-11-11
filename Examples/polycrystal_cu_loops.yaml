@@ -1,0 +1,49 @@
+# Copper polycrystal (8 random grains, Seed 7) with one loop of each behaviour:
+#   1 glide loop inside its grain; 2 Shockley loop larger than its grain (clipped to the
+#   grain cross-section: end-to-end stacking fault, partials in the GBs); 3 interstitial Frank
+#   loop clipped by a GB; 4 vacancy prismatic rhombus at a seed next to a box face; 5 a loop
+#   placed in grain 3 but assigned to grain 2: skipped. Grain seeds: see the log or
+#   Poly_8g_120x120x120_grains.txt. m, n: crystal frame of the grain; Center: box frame.
+general:
+  Lattice: FCC
+  Element: Cu
+  a0: 3.615
+  Output_format: both
+polycrystal:
+  Box: [120, 120, 120]
+  Grains: 8
+  Seed: 7
+dislocations:
+  - Grain: 3                       # glide loop inside its grain
+    Shape: circular
+    Radius: 12.0
+    Center: [-12.307, -22.977, 39.860]
+    m: [1, -1, 0]
+    n: [1, 1, 1]
+  - Grain: 4                       # Shockley loop much larger than its grain: end-to-end SF
+    Shape: circular
+    Radius: 80.0
+    Center: [43.985, -27.887, 14.467]
+    m: [-1/3, -1/3, 2/3]
+    n: [1, 1, 1]
+  - Grain: 5                       # interstitial Frank loop, off-centre: clipped by a GB
+    Shape: hexagonal
+    Circumradius: 30.0
+    Center: [-30, -39.753, -15.947]
+    m: [-2/3, -2/3, -2/3]
+    n: [1, 1, 1]
+  - Grain: 6                       # vacancy prismatic rhombus at a seed next to the y face
+    Shape: parallelogram
+    Half_1: 8.0
+    Half_2: 8.0
+    Dir_1: [1, 1, 2]
+    Dir_2: [1, 1, -2]
+    Center: [0.008, -57.863, -27.498]
+    m: [1, -1, 0]
+    n: [1, -1, 0]
+  - Grain: 2                       # placed in grain 3: misses grain 2, skipped
+    Shape: circular
+    Radius: 3.0
+    Center: [-12.307, -22.977, 39.860]
+    m: [1, -1, 0]
+    n: [1, 1, 1]

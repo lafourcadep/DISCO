@@ -14,6 +14,7 @@ Examples/generators/
   make_prismatic_dipoles.py            N prismatic dipoles (rhombic or hexagonal) at random positions
   make_prismatic_loops.py              BCC prismatic loops with added / removed atoms
   make_fcc_loops.py                    FCC: perfect prismatic rhombi and / or Frank loops
+  make_polycrystal_loops.py            polycrystal (BCC / FCC) populated with loops
 ```
 
 ## Conventions
@@ -135,6 +136,31 @@ Checked with OVITO DXA (FCC) on 22 loops (single rhombus, 8 mixed rhombi, 3 vaca
 10 mixed Frank and prismatic loops): one loop per generated loop with its Burgers vector (½⟨110⟩ or
 ⅓⟨111⟩) and no other segment, HCP fault layers inside the Frank loops only, and atom counts within
 the contour scatter of the sidecar value.
+
+## `make_polycrystal_loops.py`: dislocation-populated polycrystal
+
+Draws the grains (seeds uniform in the box, uniformly random orientations) and writes them as an
+explicit `Grain_list` (Center + Bunge Euler), then adds loops until the nominal line length reaches
+`--density` (m⁻²) or `--loops`. See [Polycrystals](polycrystal.md) for clipping and skipping.
+
+- Each loop: centre uniform in the box, grain = nearest seed (so grains get loops in proportion to
+  their volume), at least `--gap` from every other loop (bounding spheres, periodic).
+- `--kinds name:weight,...`. FCC: `glide` (½⟨110⟩{111}, circular), `shockley` (⅙⟨112⟩{111}, stable
+  sense only), `frank` (⅓⟨111⟩, hexagon with ⟨110⟩ sides), `prismatic` (½⟨110⟩ rhombus on its
+  {111} glide prism). BCC: `glide` (½⟨111⟩{110}), `prismatic` (½⟨111⟩ hexagon with ⟨112⟩ sides on its
+  {110} glide prism). Default FCC `glide:4,frank:3,prismatic:2,shockley:1`, BCC `glide:3,prismatic:2`.
+- `--size` (median radius / reach, Å) and `--size-sigma` (lognormal log-sd); `--type` for the loops
+  with b · n ≠ 0.
+- The sidecar lists the grains (centre, Euler, R) and the loops (grain, kind, type, crystal and box
+  Burgers vectors, `may_clip` when the bounding sphere leaves the grain cell). DISCO's
+  `Poly_..._loops.txt` gives the final status of each loop and the density after clipping.
+
+```bash
+python3 make_polycrystal_loops.py                                  # Cu, 8 grains, 1e16 m^-2
+python3 make_polycrystal_loops.py --grains 12 --box 200 --density 5e16 --seed 5
+python3 make_polycrystal_loops.py --kinds glide:1,frank:1 --size 25 --type interstitial
+python3 make_polycrystal_loops.py --lattice BCC --kinds glide:2,prismatic:1
+```
 
 ## Prismatic dipoles
 

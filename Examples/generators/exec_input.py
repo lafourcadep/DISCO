@@ -350,16 +350,28 @@ def write_yaml(path, general, loops, header_lines=()):
     for key in ("Lattice", "Element", "Mass"):          # optional; BCC Ta when absent
         if general.get(key) is not None:
             lines.append(f"  {key}: {general[key]}")
-    lines += [f"  a0: {general['a0']}", f"  Nx: {general['Nx']}", f"  Ny: {general['Ny']}",
-              f"  Nz: {general['Nz']}"]
+    lines.append(f"  a0: {general['a0']}")
+    if general.get("polycrystal") is None:
+        lines += [f"  Nx: {general['Nx']}", f"  Ny: {general['Ny']}", f"  Nz: {general['Nz']}"]
     if general.get("Method"):
         lines.append(f"  Method: {general['Method']}")
     lines.append(f"  Loopon_size: {_g(general['Loopon_size'])}")
     if general.get("Output_format"):
         lines.append(f"  Output_format: {general['Output_format']}")
+    pc = general.get("polycrystal")
+    if pc is not None:          # explicit grains: Center (box-centred, A) + Bunge Euler (deg)
+        lines += ["", "polycrystal:", f"  Box: [{', '.join(_g(x) for x in pc['box'])}]"]
+        if pc.get("gb_min_distance") is not None:
+            lines.append(f"  GB_min_distance: {_g(pc['gb_min_distance'])}")
+        lines.append("  Grain_list:")
+        for gr in pc["grains"]:
+            lines.append(f"    - {{Center: [{', '.join(_g(x) for x in gr['center'])}], "
+                         f"Euler: [{', '.join(f'{x:.12g}' for x in gr['euler'])}]}}")
     lines += ["", "dislocations:"]
     for l in loops:
         lines.append(f"  - Shape: {l['shape']}")
+        if l.get("grain") is not None:
+            lines.append(f"    Grain: {int(l['grain']) + 1}")
         if l["shape"] == "circular":
             lines.append(f"    Radius: {_g(l['radius'])}")
         elif l["shape"] in ("hexagonal", "polygon"):

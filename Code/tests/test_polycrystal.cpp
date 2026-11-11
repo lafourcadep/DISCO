@@ -9,6 +9,10 @@
 //   3. Rotations: random and Euler orientations are proper rotations; Euler
 //      angles round-trip.
 //   4. PortableRandom reproduces the standard mt19937_64 sequence.
+//   5. Loop clipping (cellHalfSpaces, clipPolygon): a polygon inside a cell is
+//      unchanged; a polygon larger than the box becomes the cell's cross-section
+//      (vertices on or inside the cell, area = brute-force grid count, convex,
+//      same orientation); a polygon away from the cell is empty.
 //
 //   make test
 // =============================================================================
@@ -121,12 +125,76 @@ static void randomGrains(Lattice lat)
          << ", " << r.removedGB << " removed at GBs), min distance " << dmin << " >= r_min " << rmin << "\n";
 }
 
+static vector<vector<double>> square(const double c[3], const double u[3], const double v[3], double h)
+{
+    vector<vector<double>> P;
+    const double su[4] = { 1, -1, -1, 1 }, sv[4] = { 1, 1, -1, -1 };
+    for (int q = 0; q < 4; q++)
+        P.push_back({ c[0] + h * (su[q]*u[0] + sv[q]*v[0]), c[1] + h * (su[q]*u[1] + sv[q]*v[1]),
+                      c[2] + h * (su[q]*u[2] + sv[q]*v[2]) });
+    return P;
+}
+
+static void clipping()
+{
+    PolycrystalSpec spec;
+    spec.active = true;
+    spec.box[0] = 60.; spec.box[1] = 50.; spec.box[2] = 55.;
+    spec.nGrains = 7;
+    spec.seed = 5;
+    const vector<Grain> grains = makeGrains(spec);
+    const double u[3] = { 0.6, 0.8, 0. }, v[3] = { -0.48, 0.36, 0.8 };   // orthonormal
+    const double nrm[3] = { u[1]*v[2] - u[2]*v[1], u[2]*v[0] - u[0]*v[2], u[0]*v[1] - u[1]*v[0] };
+    for (int k = 0; k < (int)grains.size(); k++) {
+        const vector<HalfSpace> hs = cellHalfSpaces(grains, spec.box, k);
+        const double* s = grains[k].seed;
+        // inside: a 1 Ang square around the seed is unchanged
+        const auto small = square(s, u, v, 0.5);
+        const auto ks = clipPolygon(small, hs);
+        assert(ks.size() == 4 && fabs(polygonArea(ks) - 1.) < 1e-12);
+        // larger than the box: the cell cross-section
+        const double H = 100.;
+        const auto big = clipPolygon(square(s, u, v, H), hs);
+        assert(big.size() >= 3);
+        for (const auto& x : big) { const double xx[3] = { x[0], x[1], x[2] }; assert(insideCell(hs, xx, 1e-6)); }
+        double ori = 0.;                       // orientation kept (normal along +nrm), convex
+        for (size_t q = 0; q < big.size(); q++) {
+            const auto& A = big[q]; const auto& B = big[(q + 1) % big.size()]; const auto& C = big[(q + 2) % big.size()];
+            const double e1[3] = { B[0]-A[0], B[1]-A[1], B[2]-A[2] }, e2[3] = { C[0]-B[0], C[1]-B[1], C[2]-B[2] };
+            const double t = (e1[1]*e2[2] - e1[2]*e2[1]) * nrm[0] + (e1[2]*e2[0] - e1[0]*e2[2]) * nrm[1]
+                           + (e1[0]*e2[1] - e1[1]*e2[0]) * nrm[2];
+            assert(t > 0.);
+            ori += t;
+        }
+        assert(ori > 0.);
+        const int M = 800;                    // grid count of the cross-section
+        const double step = 2. * H / M;
+        long in = 0;
+        for (int a = 0; a < M; a++)
+            for (int b = 0; b < M; b++) {
+                const double ca = -H + (a + 0.5) * step, cb = -H + (b + 0.5) * step;
+                const double x[3] = { s[0] + ca*u[0] + cb*v[0], s[1] + ca*u[1] + cb*v[1], s[2] + ca*u[2] + cb*v[2] };
+                in += insideCell(hs, x, 0.);
+            }
+        const double gridArea = in * step * step, area = polygonArea(big);
+        assert(fabs(gridArea - area) < 0.01 * area + 4. * step * sqrt(area));
+        // away from the cell: one box length out along the plane, beyond the cell
+        const double far[3] = { s[0] + 3. * spec.box[0] * u[0], s[1] + 3. * spec.box[0] * u[1], s[2] + 3. * spec.box[0] * u[2] };
+        assert(clipPolygon(square(far, u, v, 5.), hs).empty());
+        if (k == 0)
+            cout << "  clipping, grain 1: cross-section " << big.size() << " vertices, area " << area
+                 << " Ang^2 (grid " << gridArea << ")\n";
+    }
+    cout << "  clipping: 7 grains, inside / cross-section / outside OK\n";
+}
+
 int main()
 {
     cout << "test_polycrystal:\n";
     oneGrainEqualsOriented();
     randomGrains(Lattice::BCC);
     randomGrains(Lattice::FCC);
+    clipping();
 
     // Euler round trip
     for (const double* e : { (const double[]){ 30., 40., 50. }, (const double[]){ 200., 120., 10. },

@@ -89,3 +89,25 @@ PolycrystalResult buildPolycrystal(Lattice l, double a0, const PolycrystalSpec& 
 // Index of the grain whose periodic Voronoi cell holds the lab point x
 // (minimum image over all seeds; ties to the smaller grain index)
 int grainOf(const std::vector<Grain>& grains, const double box[3], const double x[3]);
+
+// -----------------------------------------------------------------------------
+// Grain cells as half-spaces, for clipping dislocation loops at the GBs.
+// Point x (lab, unwrapped around the seed s_k) is in the cell of grain k iff
+// a.x <= c for every half-space: a = p - s_k, c = a.s_k + |a|^2 / 2, p any
+// competing seed image (other seeds x 27 images, own 26 images).
+// -----------------------------------------------------------------------------
+struct HalfSpace { double a[3]; double c; };
+
+std::vector<HalfSpace> cellHalfSpaces(const std::vector<Grain>& grains, const double box[3], int k);
+
+bool insideCell(const std::vector<HalfSpace>& hs, const double x[3], double tol = 1e-9);
+
+// Sutherland-Hodgman clipping of a planar convex polygon (3D vertices, in
+// order) by the half-spaces. The result is convex, in the same order, with
+// vertices closer than 1e-6 Angstrom merged and collinear vertices removed
+// (empty if fewer than 3 vertices remain).
+std::vector<std::vector<double>> clipPolygon(const std::vector<std::vector<double>>& poly,
+                                             const std::vector<HalfSpace>& hs);
+
+// Area of a planar polygon (3D vertices, in order)
+double polygonArea(const std::vector<std::vector<double>>& poly);

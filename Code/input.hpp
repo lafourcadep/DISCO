@@ -47,6 +47,8 @@ private:
   std::vector<int>                   _listSides;        // polygon: number of sides (0 = Vertices)
   std::vector< std::vector< std::vector<double> > > _listVertices; // polygon: explicit vertices
   std::vector<std::string>           _listMatter;       // "auto" | "none" (loops with b.n != 0)
+  std::vector<int>                   _listGrain;        // polycrystal: grain index (0-based), else -1
+  std::vector<std::string>           _listClip;         // polycrystal: "auto" | "none"
 
 public:
 
@@ -83,6 +85,8 @@ public:
   std::vector<double> getDir1(int dislo);         // parallelogram only
   std::vector<double> getDir2(int dislo);         // parallelogram only
   std::string         getMatter(int dislo);       // "auto" or "none"
+  int                 getGrain(int dislo);        // polycrystal: grain (0-based), else -1
+  std::string         getClip(int dislo);         // polycrystal: "auto" or "none"
   int                 getSides(int dislo);        // polygon: regular, 0 = explicit Vertices
   std::vector< std::vector<double> > getVertices(int dislo);   // polygon, explicit
 };

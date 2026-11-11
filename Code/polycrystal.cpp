@@ -300,3 +300,102 @@ PolycrystalResult buildPolycrystal(Lattice l, double a0, const PolycrystalSpec& 
     for (long a = 0; a < k; a++) res.grains[res.grain[a]].atoms++;
     return res;
 }
+
+// =============================================================================
+// Cells as half-spaces, loop clipping
+// =============================================================================
+vector<HalfSpace> cellHalfSpaces(const vector<Grain>& grains, const double box[3], int k)
+{
+    vector<HalfSpace> hs;
+    const double* s = grains[k].seed;
+    for (size_t j = 0; j < grains.size(); j++)
+        for (int kx = -1; kx <= 1; kx++)
+            for (int ky = -1; ky <= 1; ky++)
+                for (int kz = -1; kz <= 1; kz++) {
+                    if ((int)j == k && kx == 0 && ky == 0 && kz == 0) continue;
+                    HalfSpace h;
+                    const double p[3] = { grains[j].seed[0] + kx * box[0], grains[j].seed[1] + ky * box[1],
+                                          grains[j].seed[2] + kz * box[2] };
+                    double a2 = 0., as = 0.;
+                    for (int d = 0; d < 3; d++) {
+                        h.a[d] = p[d] - s[d];
+                        a2 += h.a[d] * h.a[d];
+                        as += h.a[d] * s[d];
+                    }
+                    h.c = as + 0.5 * a2;
+                    hs.push_back(h);
+                }
+    return hs;
+}
+
+bool insideCell(const vector<HalfSpace>& hs, const double x[3], double tol)
+{
+    for (const HalfSpace& h : hs)
+        if (h.a[0]*x[0] + h.a[1]*x[1] + h.a[2]*x[2] > h.c + tol) return false;
+    return true;
+}
+
+double polygonArea(const vector<vector<double>>& P)
+{
+    double c[3] = { 0., 0., 0. };
+    const size_t N = P.size();
+    for (size_t i = 0; i < N; i++) {
+        const vector<double>& p = P[i];
+        const vector<double>& q = P[(i + 1) % N];
+        c[0] += p[1]*q[2] - p[2]*q[1];
+        c[1] += p[2]*q[0] - p[0]*q[2];
+        c[2] += p[0]*q[1] - p[1]*q[0];
+    }
+    return 0.5 * sqrt(c[0]*c[0] + c[1]*c[1] + c[2]*c[2]);
+}
+
+vector<vector<double>> clipPolygon(const vector<vector<double>>& poly, const vector<HalfSpace>& hs)
+{
+    vector<vector<double>> P = poly;
+    for (const HalfSpace& h : hs) {
+        if (P.empty()) break;
+        const double an = sqrt(h.a[0]*h.a[0] + h.a[1]*h.a[1] + h.a[2]*h.a[2]);
+        auto f = [&](const vector<double>& x) {    // signed distance, > 0 outside
+            return (h.a[0]*x[0] + h.a[1]*x[1] + h.a[2]*x[2] - h.c) / an;
+        };
+        bool anyOut = false;
+        for (const auto& x : P) if (f(x) > 1e-12) { anyOut = true; break; }
+        if (!anyOut) continue;
+        vector<vector<double>> Q;
+        const size_t N = P.size();
+        for (size_t i = 0; i < N; i++) {
+            const vector<double>& A = P[i];
+            const vector<double>& B = P[(i + 1) % N];
+            const double fa = f(A), fb = f(B);
+            const bool ina = fa <= 1e-12, inb = fb <= 1e-12;
+            if (ina) Q.push_back(A);
+            if (ina != inb) {
+                const double t = fa / (fa - fb);
+                Q.push_back({ A[0] + t * (B[0] - A[0]), A[1] + t * (B[1] - A[1]), A[2] + t * (B[2] - A[2]) });
+            }
+        }
+        P.swap(Q);
+    }
+    // Clean up: merge near-duplicates, drop collinear vertices
+    bool changed = true;
+    while (changed && P.size() >= 3) {
+        changed = false;
+        const size_t N = P.size();
+        for (size_t i = 0; i < N && !changed; i++) {
+            const vector<double>& A = P[(i + N - 1) % N];
+            const vector<double>& B = P[i];
+            const vector<double>& C = P[(i + 1) % N];
+            const double e1[3] = { B[0]-A[0], B[1]-A[1], B[2]-A[2] }, e2[3] = { C[0]-B[0], C[1]-B[1], C[2]-B[2] };
+            const double l1 = sqrt(e1[0]*e1[0] + e1[1]*e1[1] + e1[2]*e1[2]);
+            const double l2 = sqrt(e2[0]*e2[0] + e2[1]*e2[1] + e2[2]*e2[2]);
+            const double cr[3] = { e1[1]*e2[2] - e1[2]*e2[1], e1[2]*e2[0] - e1[0]*e2[2], e1[0]*e2[1] - e1[1]*e2[0] };
+            const double sinT = (l1 > 0. && l2 > 0.) ? sqrt(cr[0]*cr[0] + cr[1]*cr[1] + cr[2]*cr[2]) / (l1 * l2) : 0.;
+            if (l1 < 1e-6 || sinT < 1e-9) {        // B duplicates A, or A-B-C collinear
+                P.erase(P.begin() + i);
+                changed = true;
+            }
+        }
+    }
+    if (P.size() < 3) P.clear();
+    return P;
+}

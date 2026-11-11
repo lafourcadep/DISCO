@@ -207,7 +207,7 @@ int main(int argc, char** argv)
     const int         nx=dim[0], ny=dim[1], nz=dim[2];
     const Lattice     lattice    = inputFile.getLattice();
     const string      element    = inputFile.getElement();
-    const int         nbLoops    = inputFile.getNumberOfLoops();
+    int               nbLoops    = inputFile.getNumberOfLoops();   // loops kept (skipped ones removed)
     const string      outName    = inputFile.getOutputFileName();
     const string      outFormat  = inputFile.getOutputFormat();
     int               nbAtoms    = inputFile.getNumberOfAtoms();   // changes with prismatic loops
@@ -291,19 +291,36 @@ int main(int argc, char** argv)
     listLoop.reserve(nbLoops);
     vector<double> planeSpacing(nbLoops);   // atomic-plane spacing of each loop normal
     vector<BurgersClass> burgersClass(nbLoops);   // perfect / Frank / Shockley / other
+    vector<int> loopInput;                  // kept loop -> input index (skipped loops removed)
+    vector<Orientation> loopOrient;         // kept loop -> crystal frame (box or grain)
+    struct LoopReport { int input, grain; string status; double area0, area1; long atoms; };
+    vector<LoopReport> loopReport;          // polycrystal: one line per input loop
+    const double boxL3[3] = { dx, dy, dz };
+    const int nbInputLoops = nbLoops;
     for (int i = 0; i < nbLoops; i++) {
         double d;
-        // m, n, Side, Dir_1/2, Vertex_dir, Vertices: crystal frame; Center: lab frame
+        // m, n, Side, Dir_1/2, Vertex_dir, Vertices: crystal frame (box, or grain k);
+        // Center: lab frame
+        const int gk = inputFile.getGrain(i);
+        const Orientation& lo = gk >= 0 ? polyGrains[gk].o : orient;
+        vector<double> cIn = inputFile.getCenter(i);
+        if (gk >= 0)    // unwrap around the grain seed: its lattice is continuous there
+            for (int k = 0; k < 3; k++) {
+                double r = cIn[k] - polyGrains[gk].seed[k];
+                r -= boxL3[k] * floor(r / boxL3[k] + 0.5);
+                cIn[k] = polyGrains[gk].seed[k] + r;
+            }
         const double boxOrigin[3] = { -dx2, -dy2, -dz2 };   // a lattice site (box corner)
-        const vector<double> c = orient.active
-            ? snapToMidPlaneOriented(inputFile.getCenter(i), inputFile.getN(i), orient, boxOrigin,
-                                     a0, d, lattice)
-            : snapToMidPlane(inputFile.getCenter(i), inputFile.getN(i), a0, nx, ny, nz, d, lattice);
-        const vector<double> mL = rotateToLab(orient, inputFile.getM(i));
-        const vector<double> nL = rotateToLab(orient, inputFile.getN(i));
-        vector<double> sideL = rotateToLab(orient, inputFile.getSide(i));
-        if (orient.active && sideL.empty())   // crystal-frame default axis, rotated
-            sideL = rotateToLab(orient, defaultInPlaneAxis(inputFile.getM(i), inputFile.getN(i)));
+        vector<double> c = gk >= 0
+            ? snapToMidPlaneOriented(cIn, inputFile.getN(i), lo, polyGrains[gk].seed, a0, d, lattice)
+            : orient.active
+            ? snapToMidPlaneOriented(cIn, inputFile.getN(i), orient, boxOrigin, a0, d, lattice)
+            : snapToMidPlane(cIn, inputFile.getN(i), a0, nx, ny, nz, d, lattice);
+        const vector<double> mL = rotateToLab(lo, inputFile.getM(i));
+        const vector<double> nL = rotateToLab(lo, inputFile.getN(i));
+        vector<double> sideL = rotateToLab(lo, inputFile.getSide(i));
+        if (lo.active && sideL.empty())   // crystal-frame default axis, rotated
+            sideL = rotateToLab(lo, defaultInPlaneAxis(inputFile.getM(i), inputFile.getN(i)));
         const string shape = inputFile.getShape(i);
         burgersClass[i] = classifyBurgers(lattice, inputFile.getM(i), inputFile.getN(i));
         {
@@ -340,7 +357,7 @@ int main(int argc, char** argv)
             if (inputFile.getSides(i) > 0)
                 verts = regularPolygon(inputFile.getSides(i), inputFile.getRadius(i), sideL, mL, nL);
             else
-                for (const vector<double>& v : inputFile.getVertices(i)) verts.push_back(rotateToLab(orient, v));
+                for (const vector<double>& v : inputFile.getVertices(i)) verts.push_back(rotateToLab(lo, v));
         }
         loop l = isPolygon
             ? loop(da, verts, inputFile.getCornerRadius(i), c, mL, nL, a0, compress, sideL)
@@ -349,15 +366,71 @@ int main(int argc, char** argv)
                    c, mL, nL, a0, compress, sideL)
             : (shape == "parallelogram")
             ? loop(da, inputFile.getHalfM(i), inputFile.getHalfP(i),
-                   rotateToLab(orient, inputFile.getDir1(i)), rotateToLab(orient, inputFile.getDir2(i)),
+                   rotateToLab(lo, inputFile.getDir1(i)), rotateToLab(lo, inputFile.getDir2(i)),
                    c, mL, nL, a0, compress)
             : loop(da, inputFile.getRadius(i), c, mL, nL, a0, compress);
+        // ---- Polycrystal: clip the contour to the grain's Voronoi cell ----
+        //   A loop larger than its grain spans the grain's cross-section (its edges lie in
+        //   the GBs); a loop that misses its grain is skipped: with no line left, its field
+        //   is zero, and unclipped its cut would leave a fault in another grain.
+        string status = "kept";
+        double area0 = 0., area1 = 0.;
+        if (gk >= 0) {
+            const vector< vector<double> > P = l.polyline(segTol);
+            area0 = polygonArea(P);
+            area1 = area0;
+            const vector<HalfSpace> hs = cellHalfSpaces(polyGrains, boxL3, gk);
+            bool inside = true;
+            for (const auto& x : P) { const double xx[3] = { x[0], x[1], x[2] }; inside = inside && insideCell(hs, xx, 1e-6); }
+            vector< vector<double> > Q = P;
+            if (!inside) {
+                if (inputFile.getClip(i) == "none")
+                    cerr << "WARNING: loop " << i+1 << " leaves grain " << gk+1 << " and Clip: none: its cut"
+                         << " surface crosses the GB (fault in the neighbouring grain)\n";
+                else {
+                    Q = clipPolygon(P, hs);
+                    area1 = Q.empty() ? 0. : polygonArea(Q);
+                    status = "clipped";
+                }
+            }
+            const double bmag = l.getBurgers()[0];
+            if (Q.empty() || area1 < 4. * bmag * bmag) {
+                cerr << "WARNING: loop " << i+1 << " (grain " << gk+1 << ") "
+                     << (Q.empty() ? "does not intersect its grain" : "keeps only a sliver of its grain")
+                     << " (area " << area1 << " of " << area0 << " Ang^2): skipped\n";
+                loopReport.push_back({ i, gk, Q.empty() ? "skipped_outside" : "skipped_sliver", area0, area1, 0 });
+                continue;
+            }
+            // Rebuild as an explicit polygon around its centroid (same mid-plane), with the
+            // centre moved into the box by whole box vectors (field and slab are periodic)
+            double cg[3] = { 0., 0., 0. };
+            for (const auto& x : Q) for (int k = 0; k < 3; k++) cg[k] += x[k] / Q.size();
+            bool outside = false;
+            for (int k = 0; k < 3; k++) outside = outside || cg[k] < -0.5 * boxL3[k] || cg[k] >= 0.5 * boxL3[k];
+            if (status == "clipped" || outside) {
+                vector< vector<double> > rel;
+                for (const auto& x : Q) rel.push_back({ x[0] - cg[0], x[1] - cg[1], x[2] - cg[2] });
+                for (int k = 0; k < 3; k++) {
+                    cg[k] -= boxL3[k] * floor(cg[k] / boxL3[k] + 0.5);
+                    if (cg[k] >= 0.5 * boxL3[k]) cg[k] -= boxL3[k];
+                }
+                c = { cg[0], cg[1], cg[2] };
+                l = loop(da, rel, 0., c, mL, nL, a0, compress, sideL);
+            }
+            loopReport.push_back({ i, gk, status, area0, area1, 0 });
+        }
         l.generateSurface();
         if (!lineMethod) l.generateLoopons();
         const int nSeg = lineMethod ? (int)l.polyline(segTol).size() : 0;
-        const vector<double>& c0 = inputFile.getCenter(i);
-        const double shift = sqrt((c[0]-c0[0])*(c[0]-c0[0]) + (c[1]-c0[1])*(c[1]-c0[1])
-                                  + (c[2]-c0[2])*(c[2]-c0[2]));
+        const vector<double> nU = nL;          // snap shift: along n between cIn and the mid-plane
+        const double nn = sqrt(nU[0]*nU[0] + nU[1]*nU[1] + nU[2]*nU[2]);
+        double shift = 0.;
+        {
+            const vector<double> cs = gk >= 0
+                ? snapToMidPlaneOriented(cIn, inputFile.getN(i), lo, polyGrains[gk].seed, a0, d, lattice)
+                : c;
+            shift = fabs(((cs[0]-cIn[0])*nU[0] + (cs[1]-cIn[1])*nU[1] + (cs[2]-cIn[2])*nU[2]) / nn);
+        }
         const double b = l.getBurgers()[0];
         planeSpacing[i] = d;
         cout << "  Loop " << i+1 << ": " << inputFile.getShape(i)
@@ -393,8 +466,18 @@ int main(int argc, char** argv)
         cout << "    centre : " << c[0] << " " << c[1] << " " << c[2]
              << " Ang  (moved " << shift << " Ang along n to the mid-plane,"
              << " plane spacing " << d << " Ang)\n";
+        if (gk >= 0 && status == "clipped")
+            cout << "    grain  : " << gk+1 << ", clipped at the GBs: area " << loopReport.back().area0
+                 << " -> " << loopReport.back().area1 << " Ang^2\n";
+        else if (gk >= 0)
+            cout << "    grain  : " << gk+1 << ", inside its grain\n";
         listLoop.push_back(l);
+        loopInput.push_back(i);
+        loopOrient.push_back(lo);
     }
+    nbLoops = (int)listLoop.size();
+    if (nbLoops < nbInputLoops)
+        cout << "  " << nbInputLoops - nbLoops << " loop(s) skipped, " << nbLoops << " kept\n";
     lap("Loops + loopons (CPU)");
 
 
@@ -420,13 +503,21 @@ int main(int argc, char** argv)
         bool any = false;
         for (int l = 0; l < nbLoops; l++) {
             if (matterType(listLoop[l]) == MatterType::NONE) continue;
-            if (inputFile.getMatter(l) == "none") {
-                cout << "  Loop " << l+1 << ": b.n != 0 but Matter: none -> displacement only\n";
+            if (inputFile.getMatter(loopInput[l]) == "none") {
+                cout << "  Loop " << loopInput[l]+1 << ": b.n != 0 but Matter: none -> displacement only\n";
                 continue;
             }
             if (!any) { cout << "\n--- Prismatic loops: atoms added / removed ---\n"; any = true; }
-            const SlabResult sl = prismaticSlab(listLoop[l], planeSpacing[l],
-                                                hAtomX, hAtomY, hAtomZ, dx, dy, dz);
+            SlabResult sl = prismaticSlab(listLoop[l], planeSpacing[loopInput[l]],
+                                          hAtomX, hAtomY, hAtomZ, dx, dy, dz);
+            const int gl = inputFile.getGrain(loopInput[l]);
+            if (gl >= 0) {      // only atoms of the loop's grain (the slab can poke past a GB)
+                SlabResult f = sl;
+                f.atoms.clear(); f.side.clear();
+                for (size_t q = 0; q < sl.atoms.size(); q++)
+                    if (atomGrain[sl.atoms[q]] == gl) { f.atoms.push_back(sl.atoms[q]); f.side.push_back(sl.side[q]); }
+                sl = f;
+            }
             const int    ns    = (int)sl.atoms.size();
             const double area  = lineMethod ? listLoop[l].getContourArea()
                                             : listLoop[l].getNumberOfLoopons() * listLoop[l].getSurface();
@@ -447,14 +538,14 @@ int main(int argc, char** argv)
                 for (int sd = 0; sd < 2; sd++) {
                     const double sign = sd == 0 ? 1. : -1.;
                     const double v[3] = { sign*sl.b[0], sign*sl.b[1], sign*sl.b[2] };
-                    if (burgersClass[l] == BurgersClass::FRANK) {
+                    if (burgersClass[loopInput[l]] == BurgersClass::FRANK) {
                         // crystal frame (lattice translations), then back to the lab
-                        const vector<double> nh = rotateToCrystal(orient, listLoop[l].getN());
-                        const vector<double> vc = rotateToCrystal(orient, { v[0], v[1], v[2] });
+                        const vector<double> nh = rotateToCrystal(loopOrient[l], listLoop[l].getN());
+                        const vector<double> vc = rotateToCrystal(loopOrient[l], { v[0], v[1], v[2] });
                         const double nhat[3] = { nh[0], nh[1], nh[2] }, vcr[3] = { vc[0], vc[1], vc[2] };
                         double out[3];
                         frankCopyShift(vcr, nhat, a0, out);
-                        const vector<double> ol = rotateToLab(orient, { out[0], out[1], out[2] });
+                        const vector<double> ol = rotateToLab(loopOrient[l], { out[0], out[1], out[2] });
                         for (int c = 0; c < 3; c++) shift[sd][c] = ol[c];
                     } else
                         for (int c = 0; c < 3; c++) shift[sd][c] = v[c];
@@ -465,7 +556,9 @@ int main(int argc, char** argv)
                 }
                 dVolume += area * sl.height;
             }
-            cout << "  Loop " << l+1 << ": " << matterName(sl.type) << ", |b.n| = " << sl.height
+            for (auto& rp : loopReport)
+                if (rp.input == loopInput[l]) rp.atoms = (sl.type == MatterType::VACANCY ? -1 : 1) * (long)ns;
+            cout << "  Loop " << loopInput[l]+1 << ": " << matterName(sl.type) << ", |b.n| = " << sl.height
                  << " Ang = " << sl.planes << " plane(s) of d = " << sl.spacing << " Ang, "
                  << (sl.type == MatterType::VACANCY ? "removed " : "added ") << ns
                  << " atoms (rho A |b.n| = " << setprecision(1) << fixed << nomin << ")\n"
@@ -681,6 +774,40 @@ int main(int argc, char** argv)
             gout << "  " << na << "\n";
         }
         cout << "Written " << gName << "\n";
+
+        // Loop table: one line per input loop (kept, clipped or skipped)
+        const string lName = outName.substr(0, outName.size()-4) + "_loops.txt";
+        ofstream lout(lName);
+        lout << "# DISCO polycrystal loops: input index, grain, kind, b (crystal, units of a0), n (crystal),\n"
+             << "# b (lab, Ang), status, contour area before / after clipping (Ang^2), perimeter (Ang),"
+             << " atoms added (+) / removed (-)\n";
+        lout << setprecision(8);
+        double perimTot = 0.;
+        for (const auto& rp : loopReport) {
+            const int i = rp.input;
+            const vector<double> m = inputFile.getM(i), n = inputFile.getN(i);
+            const vector<double> bl = rotateToLab(polyGrains[rp.grain].o, { a0/2*m[0], a0/2*m[1], a0/2*m[2] });
+            double perim = 0.;
+            for (int l = 0; l < nbLoops; l++)
+                if (loopInput[l] == i) {
+                    const auto P = listLoop[l].polyline(segTol);
+                    for (size_t q = 0; q < P.size(); q++) {
+                        const auto& A = P[q]; const auto& B = P[(q + 1) % P.size()];
+                        perim += sqrt((B[0]-A[0])*(B[0]-A[0]) + (B[1]-A[1])*(B[1]-A[1]) + (B[2]-A[2])*(B[2]-A[2]));
+                    }
+                }
+            perimTot += perim;
+            lout << i + 1 << "  " << rp.grain + 1 << "  " << burgersClassName(burgersClass[i])
+                 << "  " << m[0]/2 << " " << m[1]/2 << " " << m[2]/2 << "  " << n[0] << " " << n[1] << " " << n[2]
+                 << "  " << bl[0] << " " << bl[1] << " " << bl[2] << "  "
+                 << rp.status
+                 << "  " << rp.area0 << " " << rp.area1 << "  " << perim << "  " << rp.atoms << "\n";
+        }
+        if (!loopReport.empty()) {
+            cout << "Written " << lName << "\n";
+            cout << "Dislocation density (kept loops, line length / volume): " << scientific << setprecision(3)
+                 << perimTot / (dx * dy * dz) * 1e20 << " m^-2" << defaultfloat << setprecision(6) << "\n";
+        }
     }
 
     if (outFormat != "xyz" && outFormat != "lammps" && outFormat != "both" && outFormat != "none")
