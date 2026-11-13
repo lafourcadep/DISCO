@@ -41,7 +41,6 @@ Usage:
   python3 make_fcc_loops.py --kind prismatic --b 1 -1 0 --size 30 --element Ni --a0 3.52
 """
 import argparse
-import itertools
 import math
 import os
 import sys
@@ -50,68 +49,28 @@ import numpy as np
 
 import exec_input as E
 
-A0_CU = 3.615                                    # Mishin Cu EAM
-B110 = [np.array(v) for v in sorted(set(itertools.permutations((1, 1, 0))) | set(itertools.permutations((1, -1, 0))))
-        if next(x for x in v if x != 0) > 0]     # the 6 <110> directions, one sign each
-B111 = [np.array(v) for v in itertools.product((1, -1), repeat=3) if v[0] == 1]
+SCRIPT = "make_fcc_loops.py"
 SHAPES = {"prismatic": ("rhombus", "circular"), "frank": ("hexagonal", "triangular", "circular")}
-
-
-def reduced(v):
-    return np.array(E.reduce_miller([int(round(x)) for x in v]))
-
-
-def glide_planes(b):
-    """The two {111} normals containing the <110> direction b (one sign each)."""
-    return [p for p in B111 if p @ b == 0]
-
-
-def rhombus(b, side):
-    """Perfect prismatic loop on (b) bounded by the two {111} glide planes of b: a DISCO
-    parallelogram with Dir_1, Dir_2 = n x p_i (<112>) and Half_1 = Half_2 = side / 2."""
-    p1, p2 = glide_planes(b)
-    d1, d2 = reduced(np.cross(b, p1)), reduced(np.cross(b, p2))
-    if np.dot(d1, d2) < 0:                       # acute angle between Dir_1 and Dir_2 (70.5 deg)
-        d2 = -d2
-    return dict(shape="parallelogram", half_1=side / 2, half_2=side / 2,
-                dir_1=[int(x) for x in d1], dir_2=[int(x) for x in d2])
 
 
 def triangle_vertex_dir(n):
     """A <112> in the {111} plane n: the triangle vertices along <112> put its sides on <110>."""
-    u = next(v for v in B110 if v @ n == 0)
-    return [int(x) for x in reduced(np.cross(n, u))]
+    u = next(v for v in E.D110 if v @ n == 0)
+    return [int(x) for x in E.reduced(np.cross(n, u))]
 
 
 def shape_of(kind, shape, size, b):
     if shape == "circular":
         return dict(shape="circular", radius=size)
     if kind == "prismatic":
-        return rhombus(b, size)
+        return E.rhombus_110(b, size)
     if shape == "hexagonal":                      # default in-plane axis: a <110> vertex,
         return dict(shape="hexagonal", circumradius=size)   # so the sides run along <110>
     return dict(shape="polygon", sides=3, circumradius=size, vertex_dir=triangle_vertex_dir(b))
 
 
-def area_and_reach(loop):
-    """Contour area (A^2) and bounding radius around the centre (A)."""
-    if loop["shape"] == "circular":
-        return math.pi * loop["radius"] ** 2, loop["radius"]
-    if loop["shape"] == "parallelogram":
-        s = 2 * loop["half_1"]                   # rhombus with angle acos(1/3)
-        return s * s * 2 * math.sqrt(2) / 3, s * math.sqrt(2 / 3)
-    R = loop["circumradius"]
-    k = 6 if loop["shape"] == "hexagonal" else loop["sides"]
-    return 0.5 * k * R * R * math.sin(2 * math.pi / k), R
-
-
-def min_image(r, box):
-    return r - box * np.round(r / box)
-
-
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("-o", "--output", default="fcc_loops.yaml")
     p.add_argument("--kind", default="prismatic", choices=["prismatic", "frank", "mixed"])
     p.add_argument("--frank-fraction", type=float, default=0.5, help="--kind mixed: probability of a Frank loop")
     p.add_argument("--count", type=int, default=1)
@@ -125,11 +84,9 @@ def main():
     p.add_argument("--cells", type=int, nargs="+", default=None,
                    help="Nx [Ny Nz] (default: smallest even cube holding the loops)")
     p.add_argument("--gap", type=float, default=15.0, help="minimum distance between loops (A)")
-    p.add_argument("--a0", type=float, default=A0_CU)
-    p.add_argument("--element", default="Cu")
+    p.add_argument("--element", default="Cu", help="species name in the output files (default Cu)")
     p.add_argument("--mass", type=float, default=None, help="Dalton (default: DISCO's table for --element)")
-    p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--format", default="lammps", choices=["xyz", "lammps", "both", "none"])
+    E.add_common_args(p, E.A0_CU, output="fcc_loops.yaml")
     a = p.parse_args()
     rng = np.random.default_rng(a.seed)
 
@@ -151,35 +108,32 @@ def main():
     if not 0. <= a.frank_fraction <= 1.:
         sys.exit("--frank-fraction must be in [0, 1]")
 
-    reach_max = max(area_and_reach(shape_of(k, shape_for[k], a.size,
-                                            B110[0] if k == "prismatic" else B111[0]))[1] for k in kinds)
-    if a.cells is None:
+    reach_max = max(E.bounding_radius(shape_of(k, shape_for[k], a.size,
+                                               E.D110[0] if k == "prismatic" else E.D111[0])) for k in kinds)
+    cells = E.parse_cells(a.cells)
+    if cells is None:
         side = (2 * reach_max + a.gap) * max(1., a.count ** (1 / 3)) * 1.6 + 6 * a.a0
         n = math.ceil(side / a.a0)
         cells = [n + n % 2] * 3
-    else:
-        cells = (a.cells * 3)[:3] if len(a.cells) == 1 else a.cells
-        if len(cells) != 3:
-            sys.exit("--cells takes 1 or 3 integers")
     box = a.a0 * np.asarray(cells, float)
 
     loops, placed = [], []                       # placed: (centre, b_hat, type, kind, reach)
     for k in range(a.count):
         for attempt in range(10000):
             kind = kinds[0] if len(kinds) == 1 else ("frank" if rng.random() < a.frank_fraction else "prismatic")
-            family = B110 if kind == "prismatic" else B111
+            family = E.D110 if kind == "prismatic" else E.D111
             if a.b is not None and sorted(abs(x) for x in a.b) == sorted(abs(int(x)) for x in family[0]):
                 b = np.array(a.b)
             else:
                 b = family[rng.integers(len(family))] * rng.choice((1, -1))
             typ = a.type if a.type != "mixed" else ("interstitial", "vacancy")[rng.integers(2)]
             shape = shape_of(kind, shape_for[kind], a.size, b)
-            _, reach = area_and_reach(shape)
+            reach = E.bounding_radius(shape)
             c = (rng.random(3) - 0.5) * box if a.count > 1 or a.cells else np.zeros(3)
             bh = b / np.linalg.norm(b)
             ok = True
             for c2, bh2, typ2, kind2, reach2 in placed:
-                r = min_image(c - c2, box)
+                r = E.min_image(c - c2, box)
                 if np.linalg.norm(r) < reach + reach2 + a.gap:
                     ok = False
                 elif kind == kind2 == "prismatic" and typ2 != typ and abs(abs(bh @ bh2) - 1) < 1e-9 and \
@@ -207,7 +161,7 @@ def main():
                               lattice="FCC", element=a.element, mass=a.mass)
     n_int = sum(l["type"] == "interstitial" for l in loops)
     n_frank = sum(l["kind"] == "frank" for l in loops)
-    header = [f"{len(loops)} FCC loop(s) made by adding/removing atoms; generated by make_fcc_loops.py",
+    header = [f"{len(loops)} FCC loop(s) made by adding/removing atoms; generated by {SCRIPT}",
               f"{len(loops) - n_frank} perfect prismatic 1/2<110> ({shape_for.get('prismatic', '-')}), "
               f"{n_frank} Frank a0/3<111> ({shape_for.get('frank', '-')}); size {a.size} A",
               f"{n_int} interstitial, {len(loops) - n_int} vacancy (m.n < 0: interstitial, m.n > 0: vacancy)"]
@@ -217,7 +171,7 @@ def main():
     rho = 4 / a.a0 ** 3
     per_loop = []
     for l in loops:
-        area, _ = area_and_reach(l)
+        area = E.contour_area(l)
         nh = np.asarray(l["n"], float) / np.linalg.norm(l["n"])
         height = abs(a.a0 / 2 * np.asarray(l["m"]) @ nh)          # |b.n_hat|
         rec = dict(kind=l["kind"], type=l["type"], normal=l["n"],
@@ -226,7 +180,7 @@ def main():
                    planes=int(round(height / E.mid_spacing(l["n"], a.a0, "FCC"))),
                    atoms_added=(1 if l["type"] == "interstitial" else -1) * round(rho * area * height))
         if l["kind"] == "prismatic":
-            rec["glide_planes"] = [[int(x) for x in q] for q in glide_planes(np.asarray(l["n"]))]
+            rec["glide_planes"] = [[int(x) for x in q] for q in E.glide_planes_111(np.asarray(l["n"]))]
         else:
             rec["stacking_fault"] = "extrinsic" if l["type"] == "interstitial" else "intrinsic"
         per_loop.append(rec)
@@ -236,7 +190,7 @@ def main():
                     extra=dict(note="FCC loops with b.n != 0; DISCO adds/removes the slab atoms. "
                                     "atoms_added is rho A |b.n| (the code's count differs by the "
                                     "atoms cut by the contour)"),
-                    script="make_fcc_loops.py")
+                    script=SCRIPT)
     print(f"wrote {a.output}: {len(loops)} loop(s) ({len(loops) - n_frank} prismatic, {n_frank} Frank; "
           f"{n_int} interstitial), cells {cells}")
 

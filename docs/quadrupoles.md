@@ -1,12 +1,9 @@
 # Quadrupoles
 
-Three scripts write quadrupoles of four loops:
-
-| Script | Use |
-|---|---|
-| `Examples/generators/make_quadrupole.py` | Any pair of {110} planes; circular, square or rectangular loops; the Burgers vectors are searched for junction or annihilation; writes a ground-truth sidecar. With `--tiles`, many different quadrupoles in one sample. |
-| `Code/generate_quadrupole.py` | Two fixed circular layouts (junction, annihilation) on a pair of {110} planes; standard library only. |
-| `Examples/replicate_quadrupole/replicate_quadrupole.py` | Scales and tiles a reference quadrupole on a grid, with optional random shifts of each tile: large samples. |
+`Examples/generators/make_quadrupole.py` writes quadrupoles of four glide loops on any pair of {110}
+planes, with circular, square or rectangular loops. The Burgers vectors are searched so that the
+corner reactions form junctions or annihilate. With `--tiles`, many different quadrupoles go into one
+sample. Each file comes with a ground-truth sidecar ([Input generators](generators.md#sidecar-namejson-schema-1)).
 
 <div class="grid" markdown>
 <figure markdown="span">
@@ -80,8 +77,7 @@ python3 make_quadrupole.py --shape rectangular --half-m 60            # 60 Å ha
 `--tiles NX NY NZ` writes NX · NY · NZ quadrupoles into **one** input file, one per cubic tile of
 a regular grid, with a single JSON sidecar.
 
-Unlike [`replicate_quadrupole.py`](#replicate_quadrupolepy-large-tiled-samples), the tiles can differ.
-Each tile takes a (plane pair, mode) combination from a pool:
+The tiles can differ: each tile takes a (plane pair, mode) combination from a pool:
 
 | Option | Pool |
 |---|---|
@@ -94,7 +90,7 @@ Each tile takes a (plane pair, mode) combination from a pool:
 - `--order cycle` (default) gives the combinations to the tiles in turn, each with the preferred
   Burgers assignment. The sample is deterministic.
 - `--order random` draws a combination **and** one of its valid Burgers assignments for each tile.
-  `--seed` makes the draw reproducible.
+  `--seed` (default 0) sets the draw.
 - `--noise A` shifts each tile rigidly by a random vector: gaussian with standard deviation A,
   cut at 2A, or uniform in ±A (`--noise-type`), on the axes in `--noise-axes`. Every component is
   rounded to a whole a0. Since that is a lattice translation, every loop plane stays on its
@@ -120,99 +116,6 @@ The YAML header lists every tile: its loops, planes, prism axis and Burgers vect
 sidecar's `expected.tiles[]` gives the same per tile, plus its centre and shift and the four corner
 reactions, with loops numbered across the whole file (tile t holds loops 4t − 3 … 4t).
 `expected.frank_favourable_corners` counts the a⟨100⟩ junction corners of the sample.
-
-## `generate_quadrupole.py`: fixed circular layouts
-
-Four circular loops at (±d, ±d, 0), with `d = --distance` (default radius/2).
-
-**`junction`** (default): two systems whose Burgers vectors combine into a⟨100⟩.
-
-| | Burgers vector | Plane |
-|---|---|---|
-| System A | a0/2 [1, −1, 1] | (110) |
-| System B | a0/2 [1, 1, −1] | (011) |
-
-a0/2[1,−1,1] + a0/2[1,1,−1] = a0[1,0,0], with |b₃|² = a0² < |b_A|² + |b_B|² = 3a0²/2.
-Loops 1 (+b_A) and 2 (−b_A) are at (−d, −d, 0) and (+d, +d, 0); loops 3 (+b_B) and 4 (−b_B) at
-(+d, −d, 0) and (−d, +d, 0). The closest cross-system pairs are at distance 2d.
-
-**`annihilation`**: two dipoles, each with both loops on the same plane and with opposite b, so they annihilate
-when they meet.
-
-| Dipole | Burgers vector | Plane |
-|---|---|---|
-| 1 | a0/2 [−1, 1, 1] | (110), x + y = 0 |
-| 2 | a0/2 [1, 1, 1] | (1−10), x − y = 0 |
-
-| Option | Default | Description |
-|---|---|---|
-| `--mode` | `junction` | `junction` or `annihilation` |
-| `--radius` | `33.024` | loop radius [Å] (= 10 a0) |
-| `--distance` | radius/2 | half-separation of the loop centres [Å] |
-| `--nx/--ny/--nz` | `40/40/40` | box size [cells] |
-| `--a0` | `3.3024` | lattice parameter [Å] |
-| `--loopon-size` | `1.32096` | loopon step [Å] (= 0.4 a0) |
-| `--format` | `both` | `xyz`, `lammps` or `both` |
-| `-o` | `quadrupole.yaml` | output file |
-| `--list-slip-systems` | | print the 12 {110}⟨111⟩ systems and exit |
-
-Rule of thumb for the box: Nx/2 ≥ d + R + 2 along x and y (in units of a0), and Nz/2 ≥ R + 2.
-
-```bash
-python3 generate_quadrupole.py
-python3 generate_quadrupole.py --mode junction --radius 39.6288 --distance 29.7216 \
-    --nx 52 --ny 52 --nz 52 -o quad_junc_r12.yaml
-python3 generate_quadrupole.py --mode annihilation --radius 26.4192 --distance 19.8144 \
-    --nx 40 --ny 40 --nz 40 -o quad_anni_r8.yaml
-```
-
-## `replicate_quadrupole.py`: large tiled samples
-
-The script hard-codes the reference quadrupole of `Examples/quadrupole_circle.yaml`:
-a 40 × 40 × 40 box, R = 8 a0, half-separation d = 6 a0 (d/R = 0.75), and a0 = 3.3024 Å.
-
-| Loop | Centre (a0) | m | n |
-|---|---|---|---|
-| 1 | (−6, −6, 0) | [1, −1, −1] | [1, 1, 0] |
-| 2 | (−6, +6, 0) | [−1, −1, 1] | [−1, 1, 0] |
-| 3 | (+6, −6, 0) | [−1, −1, −1] | [−1, 1, 0] |
-| 4 | (+6, +6, 0) | [1, −1, 1] | [1, 1, 0] |
-
-The script has three steps:
-
-1. **Scaling** (`--radius R`). The centre offsets are scaled by R / 8 a0, which keeps d/R = 0.75.
-2. **Tiling** (`--nrx/--nry/--nrz`). The quadrupole is repeated on a grid. The box becomes
-   (40·Nrx) × (40·Nry) × (40·Nrz) cells and holds 4 · Nrx · Nry · Nrz loops. Tile centres are at
-   ((i − (Nrx−1)/2)·40, (j − (Nry−1)/2)·40, (k − (Nrz−1)/2)·40) a0.
-3. **Noise** (`--noise-amp`). Each tile is shifted rigidly by an independent random vector, so the quadrupole
-   geometry is kept. `gaussian` (std = amp) or `uniform` (±amp), on the axes in `--noise-axes`.
-   Shifts are rounded to whole a0. `--seed` makes the output reproducible.
-
-A loop stays inside its tile when noise_amp ≤ 20 − 1.75 R (in a0). That allows 6 a0 for R = 8,
-2.5 a0 for R = 10 and 0.75 a0 for R = 11. The script warns for every loop that leaves its tile.
-
-| Option | Default | Description |
-|---|---|---|
-| `--radius` | `26.4192` | loop radius [Å] (= 8 a0) |
-| `--loopon-size` | `1.32096` | loopon step [Å] |
-| `--nrx`, `--nry`, `--nrz` | `1` | tiles along x, y, z |
-| `--noise-amp` | `0` | noise amplitude [Å] (0 = off) |
-| `--noise-type` | `gaussian` | `gaussian` or `uniform` |
-| `--noise-axes` | `xyz` | any subset of `xyz` |
-| `--seed` | none | random seed |
-| `--format` | `lammps` | `xyz`, `lammps` or `both` |
-| `-o` | `quadrupole_replicated.yaml` | output file |
-| `--a0` | `3.3024` | lattice parameter [Å] |
-
-```bash
-cd Examples/replicate_quadrupole
-python3 replicate_quadrupole.py -o quad_original.yaml              # = quadrupole_circle.yaml
-python3 replicate_quadrupole.py --nrx 2 --nry 2 -o quad_2x2x1.yaml  # 16 loops, 80×80×40 box
-python3 replicate_quadrupole.py --nrx 4 --nry 4 \
-    --noise-amp 6.6048 --noise-axes xy --seed 42 -o quad_4x4_noisy.yaml
-```
-
-`test_noise_quadrupole.yaml` and `test_noise_quadrupole_large.yaml` in the same folder are example outputs.
 
 ## References
 

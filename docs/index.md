@@ -29,11 +29,11 @@ CPU (OpenMP).
   loop are added or removed, so the loops survive thermal MD.
 - Loop centres are moved onto the mid-plane between two atomic planes of the loop plane family.
 - Output as extended XYZ (OVITO) or LAMMPS data file.
-- Python generators (BCC) for common configurations: single loops on all 48 BCC slip systems,
-  junction and annihilation quadrupoles (one, or many different ones in one sample),
-  prismatic dipoles (one, or N at random positions), prismatic loops with added or removed atoms
-  (circular or hexagonal), and large tiled samples with random positions. Each generated input comes with a JSON file holding the expected
-  dislocation content.
+- Python generators for common configurations. BCC: single loops on all 48 slip systems, junction and
+  annihilation quadrupoles (one, or many different ones in one sample), prismatic dipoles (one, or N
+  at random positions), prismatic loops with added or removed atoms. FCC: perfect prismatic and Frank
+  loops. FCC or BCC polycrystals with loop populations and twin lamellae. Each generated input comes
+  with a JSON file holding the expected dislocation content.
 
 | | | | |
 |:-:|:-:|:-:|:-:|
@@ -43,6 +43,9 @@ CPU (OpenMP).
 | tube, junction | tube, annihilation | prismatic dipole | hexagonal interstitial loop |
 
 *Dislocation lines extracted by OVITO's DXA from samples written by DISCO.*
+
+Notation and signs: [Conventions](conventions.md). Method: [Theory](theory.md). Evidence:
+[Validation](validation.md).
 
 ## Workflow
 

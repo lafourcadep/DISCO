@@ -78,32 +78,8 @@ far slower than `exec_cpu`. Long kernels are split automatically into launches o
 make test
 ```
 
-`tests/test_loop_deform.cpp` checks the box-deformation routine (see [Theory](theory.md#box-deformation)):
-
-| # | Test | Check |
-|---|---|---|
-| 1 | Known result (simple shear) | U symmetric; U[0][1] = γ/2; z block = identity |
-| 2 | Volume conservation | det(U) = 1 for b · n = 0 |
-| 3 | Superposition | two loops of area A ≡ one loop of area 2A |
-| 4 | Empty loop list | U = I; box and positions unchanged |
-| 5 | Rotation removal | max\|U − Uᵀ\| < 1e-12 for a general loop |
-
-`tests/test_snap.cpp` checks by brute force, over the generated BCC and FCC sites, that the loop
-centre is moved exactly halfway between two atomic planes. It covers {110}, {112}, {123}, {100},
-{111} and {113} normals with even and odd `Nx`, `Ny`, `Nz`.
-
-`tests/test_prismatic.cpp` checks loops with b·n ≠ 0 (see [Input file](input.md#prismatic-and-mixed-loops-b-n-0)):
-the Kroupa jump across the cut is −b·n̂, so m·n > 0 is a vacancy loop and m·n < 0 an interstitial one;
-the slab holds |b·n̂|/d atomic planes, and its atom count is ρ A |b·n̂|. The test covers, in BCC, ½⟨111⟩ on (111) and on {110}
-and a⟨100⟩ on (100); in FCC, ½⟨110⟩ on (110) and on {111}, and a⟨100⟩ on (100).
-
-`tests/test_barnett.cpp` checks the line-integral field (see [Theory](theory.md#line-integral-method-line)):
-
-| # | Test | Check |
-|---|---|---|
-| 1 | Against a 7-point Gauss quadrature of the Kroupa kernel over the cut | < 1e-6 Å (measured ≤ 4e-10 Å), glide, prismatic and mixed loops, every shape |
-| 2 | Jump across the cut | −b inside the contour, 0 outside |
-| 3 | Invariance | fan apex moved, starting vertex rotated: < 1e-11 Å |
-| 4 | Loopon sum | converges to the line integral as `Loopon_size` → 0 |
-| 5 | Far field | a small loop matches one loopon of the same area |
-| 6 | Polyline | counter-clockwise about n, area of the contour |
+Seven tests: the line-integral field against a quadrature of the Kroupa kernel (`test_barnett`), the
+matter slab of prismatic loops (`test_prismatic`), the mid-plane snap (`test_snap`), oriented crystals
+(`test_orient`), polycrystals and loop clipping (`test_polycrystal`), twin lamellae (`test_twin`) and
+the box-deformation routine (`test_loop_deform`). What each one checks:
+[Validation](validation.md#analytic-unit-tests).

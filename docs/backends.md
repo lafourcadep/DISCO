@@ -2,10 +2,10 @@
 
 Both backends evaluate the same pair terms in double precision: the line-integral segment term
 (`Code/barnett.hpp`, `Method: line`) or the Kroupa loopon term (`Code/kroupa.hpp`, `Method: loopons`).
-They only receive loopon positions and loop parameters (b, m, n, dS), so they do not depend on
-the loop shape. The atoms added or removed for prismatic loops are handled on the host, before
+They only receive the polyline vertices (or the loopon positions) and the loop parameters
+(b, n, dS), so they do not depend on the loop shape. The atoms added or removed for prismatic loops are handled on the host, before
 and after the kernel, identically for both backends
-(see [Theory](theory.md#prismatic-loops-adding-or-removing-matter)).
+(see [Theory](theory.md#loops-with-b-n-0-adding-or-removing-matter)).
 
 **GPU (`exec_cuda`).** One thread per atom. The loopon positions of the current loop are loaded
 cooperatively into shared memory. A tiled kernel handles loops too large for shared memory.
@@ -48,18 +48,14 @@ safeguards:
 
 Loopons in float also halve the shared memory, so loops of up to 2730 loopons take the fast path.
 On Apple GPUs the shared-memory limit is taken as 32 KB (a Metal threadgroup), whatever mvcc reports.
-With `Method: line` the differences from double precision stay below 3 × 10⁻⁵ Å (rms ~10⁻⁶ Å), on
-samples of up to 315 000 atoms.
-Compared with the double-precision output, displacements differ by at most 5 × 10⁻⁶ Å
-(rms ~2 × 10⁻⁷ Å). This was measured on four samples of up to 128 649 atoms, including
-interstitial loops with atoms d/2 from the cut, and DXA finds the same loops.
+Compared with double precision, displacements differ by less than 3 × 10⁻⁵ Å with `Method: line`
+and 5 × 10⁻⁶ Å with `Method: loopons`, and DXA finds the same loops
+(see [Validation](validation.md#backends-and-precision)).
 
 ## Same sample
 
-Five test cases were run on both backends: a single loop, a parallelogram, a hexagonal prismatic dipole,
-a tube quadrupole, and one 6705-loopon loop on the GPU tiled path. The CPU `.xyz` files are
-byte-identical to the GPU ones, except for one atom in one case that differs in the last printed
-digit (1e-8 Å).
+The CPU and GPU backends give the same output, to the last printed digit in all but one atom of the
+cases tested ([Validation](validation.md#backends-and-precision)).
 
 ## Speed
 

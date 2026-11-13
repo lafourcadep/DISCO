@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write an exec_cuda input for a quadrupole of four glissile loops on two {110} planes,
+"""Write a DISCO input for a quadrupole of four glissile loops on two {110} planes,
 or for many quadrupoles in one sample (--tiles).
 
 Junction and annihilation quadrupoles on any pair of non-parallel {110} planes n1, n2,
@@ -10,17 +10,17 @@ prism along L = n1 x n2 (seen along L: a square if n1 is normal to n2, which is 
 with L = <100>; a 60 deg rhombus otherwise, which is 12 pairs with L = <111>). Each loop is
 centred on the middle of its face.
   square / rectangular  the loops are the faces of a closed tube: each spans exactly its face
-                width, with two sides along L (exec_cuda key Side = L) that coincide with the
+                width, with two sides along L (DISCO key Side = L) that coincide with the
                 neighbours' sides on the four corner lines. The shared legs carry b_A +/- b_B
                 directly. Exact coincidence needs the loopon tile edge on the corner line, so
-                Loopon_size is tuned (as in make_prismatic_dipole.py): face half-width
+                Loopon_size is tuned (as in make_prismatic_dipoles.py): face half-width
                 w = (k + 1/2) Loopon_size. Square: half-length along L = w; rectangle:
                 --half-m along L (default 14/11 w), rounded to (k' + 1/2) Loopon_size.
   circular      adjacent loops cross on the corner lines (they overlap instead of touching;
                 exact tangency gives DXA artefacts).
 Loop order: 1 = face -n1, 2 = face +n2, 3 = face -n2, 4 = face +n1.
 The planes are put on mid-planes between atomic planes (s rounded down to one), so
-exec_cuda's mid-plane snap does not move the loops and the prism stays symmetric.
+DISCO's mid-plane snap does not move the loops and the prism stays symmetric.
 
 Burgers vectors: each loop takes a 1/2<111> vector b = a0/2 m of its plane (b parallel to
 L excluded: it would be pure screw on both planes). With the line sense right-handed about
@@ -59,7 +59,7 @@ Usage:
   python3 make_quadrupole.py --shape rectangular --half-m 60     # 60 A half-length along L
   python3 make_quadrupole.py --all-pairs --shape square --outdir quads/
   python3 make_quadrupole.py --keep-offset --cells 40 --units a0 --radius 11 -o quad_junction.yaml
-                                  # centres at exactly --d, snapped by exec_cuda
+                                  # centres at exactly --d, snapped by DISCO
   python3 make_quadrupole.py --tiles 2 2 1                     # 4 identical junction quadrupoles
   python3 make_quadrupole.py --tiles 3 3 3 --tile-pairs all --mode mixed --order random --seed 1 --noise 5
   python3 make_quadrupole.py --tiles 2 2 2 --shape square --tile-pairs perpendicular --mode mixed
@@ -223,7 +223,7 @@ def shared_side_loops(a, faces, centres, corners, combo, Lint, unit_len):
 
 
 def check_shared(loops, L, da):
-    """After exec_cuda's snap: every corner line lies on both loops' tile edge, (k + 1/2) da
+    """After DISCO's snap: every corner line lies on both loops' tile edge, (k + 1/2) da
     from the centre across the face, and both loops span the same interval along L."""
     for (A, B), (K, _) in corner_chords(loops, L).items():
         spans = []
@@ -281,7 +281,7 @@ def list_assignments(Q):
 
 
 def corner_reactions(Q, a, bcc, cells):
-    """Checks the crossing (circles) or the shared sides (tubes) on the centres exec_cuda
+    """Checks the crossing (circles) or the shared sides (tubes) on the centres DISCO
     will use in a cubic box of `cells`, and returns the four corner reactions."""
     loops, L, da = Q["loops"], Q["L"], Q["da"]
     snapped = [dict(l, center=E.snap_center(l["center"], l["n"], a.a0, (cells,) * 3)) for l in loops]
@@ -308,10 +308,21 @@ def fmt(v):
     return "[" + " ".join(str(int(x)) for x in v) + "]"
 
 
+def families(reactions):
+    """Burgers families of the sample: the 1/2<111> loops, plus a<100> if any corner reacts."""
+    return ["1/2<111>"] + (["<100>"] if any(r["frank_favourable"] for r in reactions) else [])
+
+
+def junctions(reactions):
+    """Number of corners where a Frank-favourable a<100> junction is expected."""
+    return sum(bool(r["frank_favourable"]) for r in reactions)
+
+
 def note_for(shared):
-    return ("the four loops share their sides along L: each corner leg carries the product b directly "
-            "in the unrelaxed sample" if shared else
-            "corner reactions are expected after relaxation; the unrelaxed sample has 4 crossing loops")
+    net = "closed_loops is null: the four loops meet on the corner lines and form a network; "
+    return net + ("they share their sides along L, so each corner leg carries the product b directly "
+                  "in the unrelaxed sample" if shared else
+                  "the unrelaxed sample has 4 crossing loops, and the corner reactions are expected after relaxation")
 
 
 def one_quadrupole(a, bcc, n1, n2, unit_len, outpath):
@@ -336,7 +347,8 @@ def one_quadrupole(a, bcc, n1, n2, unit_len, outpath):
                + ("  (Frank-favourable junction)" if r["frank_favourable"] else "  (no junction)")
                for r in reactions]
     E.write_yaml(outpath, general, loops, header)
-    expected = dict(loops=4, corner_reactions=reactions, note=note_for(shared))
+    expected = dict(closed_loops=None, burgers_families=families(reactions), junctions=junctions(reactions),
+                    input_loops=4, corner_reactions=reactions, note=note_for(shared))
     E.write_sidecar(os.path.splitext(outpath)[0] + ".json", bcc, general, loops, expected,
                     extra=dict(quadrupole=dict(mode=a.mode, n1=[int(x) for x in n1], n2=[int(x) for x in n2],
                                                L=[int(x) for x in Lint], angle_deg=angle, plane_offset=s)))
@@ -449,7 +461,9 @@ def tiled_quadrupoles(a, bcc, planes, unit_len, outpath):
                f"{fmt(tl['n1'])}/{fmt(tl['n2'])} L {fmt(tl['L'])}  m " + " ".join(fmt(m) for m in tl["m"])
                for tl in tiles]
     E.write_yaml(outpath, general, loops, header)
-    expected = dict(loops=4 * nt, quadrupoles=nt, frank_favourable_corners=nj, tiles=tiles,
+    reactions = [r for tl in tiles for r in tl["corner_reactions"]]
+    expected = dict(closed_loops=None, burgers_families=families(reactions), junctions=junctions(reactions),
+                    input_loops=4 * nt, quadrupoles=nt, frank_favourable_corners=nj, tiles=tiles,
                     note=note_for(a.shape != "circular"))
     E.write_sidecar(os.path.splitext(outpath)[0] + ".json", bcc, general, loops, expected,
                     extra=dict(tiling=dict(tiles=[NX, NY, NZ], tile_cells=T, tile_pairs=a.tile_pairs,
@@ -475,21 +489,18 @@ def main():
     p.add_argument("--d", type=float, help="distance from the prism axis to each loop plane "
                    "(default 7.5*sqrt(2) a0 = 35.03 A, rounded down to a mid-plane)")
     p.add_argument("--keep-offset", action="store_true",
-                   help="write the centres at exactly --d and let exec_cuda snap each loop")
+                   help="write the centres at exactly --d and let DISCO snap each loop")
     p.add_argument("--loopon-size", type=float, help="loopon grid step (default 0.4 a0 = 1.32096 A); "
                    "square/rectangular: tuned close to it so the shared sides coincide")
     p.add_argument("--cells", type=int, help="Nx = Ny = Nz; default: smallest even cube with a 12 a0 margin")
-    p.add_argument("--a0", type=float, default=E.A0)
-    p.add_argument("--format", default="xyz", choices=["xyz", "lammps", "both", "none"])
     p.add_argument("--overlap", type=float, default=20.0,
                    help="automatic sizing (no size option given): smallest loops whose chords on each "
                         "corner line overlap by at least this (A)")
     p.add_argument("--warn-overlap", type=float, default=5.0,
                    help="warn when two loops' chords on their corner line overlap by less than this (A)")
     p.add_argument("--list", action="store_true", help="print every valid Burgers assignment")
-    p.add_argument("--bcc", default=E.DEFAULT_BCC)
-    p.add_argument("-o", "--output", help="output .yaml (single pair, or one tiled sample)")
-    p.add_argument("--outdir", default=".")
+    p.add_argument("--bcc", default=E.DEFAULT_BCC, help="BCC.txt used for the slip systems and ground truth")
+    E.add_common_args(p, E.A0_TA, outdir=True, seed=False)   # -o: one pair, or one tiled sample
     t = p.add_argument_group("several quadrupoles in one sample")
     t.add_argument("--tiles", type=int, nargs=3, metavar="N",
                    help="NX NY NZ: one quadrupole per tile of a NX x NY x NZ grid, all in one file")
@@ -506,7 +517,7 @@ def main():
                         "half-width for uniform); shifts are rounded to whole a0")
     t.add_argument("--noise-type", default="gaussian", choices=["gaussian", "uniform"])
     t.add_argument("--noise-axes", default="xyz", help="axes the shifts act on, any subset of xyz")
-    t.add_argument("--seed", type=int, help="random seed (--order random, --noise)")
+    t.add_argument("--seed", type=int, default=0, help="random seed for --order random and --noise (default 0)")
     a = p.parse_args()
 
     unit_len = a.a0 if a.units == "a0" else 1.0
@@ -531,7 +542,7 @@ def main():
         if a.mode == "mixed":
             sys.exit("--mode mixed needs --tiles")
         tiled_opts = [o for o, v in (("--tile-cells", a.tile_cells), ("--noise", a.noise),
-                                     ("--seed", a.seed is not None), ("--order random", a.order == "random"),
+                                     ("--order random", a.order == "random"),
                                      ("--tile-pairs", a.tile_pairs != "planes")) if v]
         if tiled_opts:
             sys.exit(f"{', '.join(tiled_opts)}: only with --tiles")

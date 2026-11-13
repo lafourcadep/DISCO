@@ -79,7 +79,7 @@ dislocations:
 ```
 
 The Burgers vector is **b** = (a0/2) **m**, so |b| = a0 |m| / 2. The log prints the size of each loop
-in Å and in units of |b|.
+in Å and in units of |b|. Signs, frames and origins are defined in [Conventions](conventions.md).
 
 ## Lattice
 
@@ -96,8 +96,8 @@ relaxed (energy minimization or MD), as expected.
 
 ### Faulted loops (FCC)
 
-Write the fractional m as exact fractions (`2/3`, `-1/3`, …). A decimal such as `0.6667` is not
-accurate enough for the plane-count check of the matter slab, which stops the program.
+Write the fractional m as exact fractions (`2/3`, `-1/3`, …); a decimal such as `0.6667` stops the
+program.
 
 | Loop | m | n | Inside the contour |
 |---|---|---|---|
@@ -105,16 +105,9 @@ accurate enough for the plane-count check of the matter slab, which stops the pr
 | Frank, interstitial | ⅔⟨111⟩, m·n < 0 | ∥ m ({111}) | one {111} layer inserted: extrinsic stacking fault |
 | Shockley | ⅓⟨112⟩, m·n = 0 | {111} containing m | glide loop: intrinsic stacking fault |
 
-- **Frank loops** (b = a0/3⟨111⟩, sessile) add or remove one {111} layer (`Matter: auto`). An
-  inserted layer cannot simply repeat its neighbour, as a perfect loop's copy at ±b does: that would
-  stack it straight over its source (AA). Each copy is therefore also shifted in the plane by the
-  Shockley vector that puts it on the third stacking position (…A **C** B C…, an extrinsic fault).
-- **Shockley loops** (b = a0/6⟨112⟩) have a sign rule. Across the cut, the +n side moves by −b, and
-  only one sense of b turns the layer above the cut into the next stacking position (intrinsic
-  fault). The other sense puts it straight over the layer below (AA), which is not a stable fault:
-  CNA shows no HCP layer and DXA finds no loop. On each {111} plane, three of the six ⅓⟨112⟩
-  vectors are stable. The program prints a warning for the wrong sense; reverse m (or n). For
-  n = [1 1 1], m = [-1/3, -1/3, 2/3] is stable and m = [1/3, 1/3, -2/3] is not.
+Inserted Frank layers are shifted onto the third stacking position, and only one sense of a Shockley
+**b** gives a stable fault: for n = [1 1 1], m = [-1/3, -1/3, 2/3] is stable and m = [1/3, 1/3, -2/3]
+is not (DISCO warns; reverse m or n). See [Theory](theory.md#faulted-loops-fcc).
 
 Example: `Examples/fcc_faulted_loops.yaml` (Cu: interstitial and vacancy Frank loops, one Shockley
 loop). DXA (FCC) finds ⅓⟨111⟩ Frank and ⅙⟨112⟩ Shockley loops, with HCP (fault) layers inside.
@@ -177,10 +170,9 @@ general:
 
 - X, Y, Z are integer directions, orthogonal and right-handed (Z along X × Y); otherwise the program
   stops.
-- `Nx`, `Ny`, `Nz` count **lattice periods** along X, Y, Z: the shortest lattice translation along
-  each direction [uvw] (reduced). FCC: a0/2 · |uvw| if u + v + w is even, a0 |uvw| otherwise. BCC:
-  a0/2 · |uvw| if u, v, w are all odd, a0 |uvw| otherwise. The box is then exactly periodic. The log
-  prints each period.
+- `Nx`, `Ny`, `Nz` count **lattice periods** along X, Y, Z, the shortest lattice translation along each
+  direction ([Theory](theory.md#oriented-crystal)), so the box is exactly periodic. The log prints
+  each period.
 - **Frames.** Crystallographic vectors stay in the crystal frame: `m`, `n`, `Side`, `Dir_1`, `Dir_2`,
   `Vertex_dir` and the `Vertices` offsets. `Center` is in the lab frame (box axes, origin at the box
   centre). The default in-plane axis of a shape (no `Side` / `Vertex_dir`) is chosen in the crystal
@@ -188,10 +180,7 @@ general:
 - Everything else (mid-plane snap, matter slab, Frank and Shockley rules, field) works as in the
   cube-aligned box. Without `Orientation` the output is unchanged.
 
-Checked with OVITO for FCC (X=[1-10], Y=[11-2], Z=[111]) and BCC (X=[111], Y=[-110], Z=[-1-12]):
-PTM finds the requested orientation on every sampled atom of a perfect box, there are no defects on
-the periodic faces, and DXA finds each loop with its Burgers vector rotated into the box frame.
-Example: `Examples/fcc_oriented_loops.yaml`.
+Example: `Examples/fcc_oriented_loops.yaml`. Checks: [Validation](validation.md#generated-samples-ovito).
 
 ## Field method
 
@@ -203,15 +192,12 @@ The displacement field of each loop is computed in one of two ways
 | `line` (default) | Closed-form line integral: exact isotropic field of the contour, made of straight segments | `Segment_tolerance` ε: circles and rounded corners are cut into chords of sagitta ≤ ε |
 | `loopons` | Kroupa sum over a grid of infinitesimal loops tiling the cut | `Loopon_size`: grid step |
 
-- Straight sides (rectangles, parallelograms, polygons) are exact with `line`. With
-  ε = 0.01 Å a circle of radius 30 Å becomes 115–135 chords and a hexagon with rounded corners
-  about 50 segments. A circle's chords keep its area; a rounded corner loses at most ~ε × arc length.
-- `loopons` approximates the contour by the grid. The error falls with `Loopon_size` (for example,
-  rms 9 × 10⁻³ Å at 0.4 a0 and 2.6 × 10⁻⁴ Å at 0.05 a0 on a glide quadrupole, compared with
-  `line`), and the field is least accurate at the dislocation cores.
-- Cost: an atom–segment pair costs about ten atom–loopon pairs, but a loop has far fewer segments
-  than loopons (48 against 23 579 for a rounded hexagon of circumradius 30 Å at `Loopon_size`
-  0.31 Å). See [CPU or GPU](backends.md#speed).
+- Straight sides (rectangles, parallelograms, polygons) are exact with `line`; circles and rounded
+  corners are cut into chords of sagitta ≤ ε (a circle's chords keep its area; a rounded corner loses
+  at most ~ε × arc length).
+- `loopons` approximates the contour by the grid; the error falls with `Loopon_size` and is largest at
+  the cores. `line` is exact and, having far fewer segments than a loop has loopons, faster
+  ([Theory](theory.md#loopon-sum-method-loopons), [CPU or GPU](backends.md#speed)).
 - `line` became the default after validation. Inputs written before it, with only `Loopon_size`,
   now run with `line`; add `Method: loopons` to reproduce older samples exactly.
 
@@ -269,50 +255,33 @@ A typical use is the ½⟨111⟩{111} prismatic loop of BCC metals (interstitial
 
 ## Prismatic and mixed loops (b · n ≠ 0)
 
-When m is not in the loop plane, the loop is prismatic (m ∥ n) or mixed. Opening or closing the cut
-by |b · n̂| needs matter. With `Matter: auto`, the code adds or removes the atoms of a slab of
-|b · n̂| = k d inside the contour. k is an integer because b is a lattice vector.
+When m is not in the loop plane, the loop is prismatic (m ∥ n) or mixed. With `Matter: auto` (default)
+DISCO adds or removes the atoms of the slab of thickness |b · n̂| inside the contour, so the loop
+survives thermal MD ([Theory](theory.md#loops-with-b-n-0-adding-or-removing-matter)).
+`Matter: none` applies the displacement field only.
 
 | sign of m · n | loop | atoms |
 |---|---|---|
 | m · n > 0 | vacancy | slab atoms removed before the displacement sum |
 | m · n < 0 | interstitial | slab atoms duplicated; each copy is displaced by u(x) + sign(s) b and lands on the other lip of the cut |
 
-This convention follows the Kroupa field: across the cut, u⁺ − u⁻ = −b.
-The log prints the number of atoms added or removed and the expected value ρ A |b · n̂|.
-The box is not deformed. The volume change ±A |b · n̂| is printed, so relax the box with NPT or
-`fix box/relax`.
-
-- The slab is bounded by mid-planes on either side of the cut. It holds 3 {111} planes for
-  ½⟨111⟩ on (111), 1 {110} plane for ½⟨111⟩ on {110}, and 2 {100} planes for a⟨100⟩ on (100).
-- With `Method: loopons`, the atoms kept next to the cut of an interstitial loop are only d/2 from
-  the loopon plane. Use `Loopon_size` ≤ 0.35 d, for example 0.33 Å for {111}; the code warns
-  otherwise. `Method: line` has no such limit: its jump across the cut is exactly −b.
+- The log prints the number of atoms added or removed and the expected value ρ A |b · n̂|, and the
+  volume change ±A |b · n̂|. The box is not deformed: relax it with NPT or `fix box/relax`.
+- With `Method: loopons`, use `Loopon_size` ≤ 0.35 d (e.g. 0.33 Å for BCC {111}); the code warns
+  otherwise. `Method: line` has no such limit.
 - For m ∥ n, the in-plane grid axes are n × e_k (e_k is the Cartesian axis with the smallest |n_k|)
   and that vector × n. `Half_m` of a rectangle is measured along the first one, and the first vertex
   of a regular polygon without `Vertex_dir` lies along it.
-- Any shape works, since the slab is cut by the loop contour. Sharp polygon corners need no rounding:
-  for interstitial and vacancy hexagons on (111) (R = 22 Å, `Loopon_size` 0.33 Å), adaptive CNA finds
-  no extra non-BCC atoms at the corners, and DXA finds one closed ½⟨111⟩ loop, with or without
-  `Corner_radius`.
-- `Examples/generators/make_prismatic_loops.py` writes such inputs.
-
-A loop made this way is stable at temperature without stress. It can glide along b but cannot
-vanish without climb. In contrast, the dipoles built from shear loops (`make_prismatic_dipole.py`)
-contain no extra matter. Their two loops share one glide prism and annihilate by glide.
+- Any shape works, and sharp polygon corners need no rounding.
+- `Examples/generators/make_prismatic_loops.py` (BCC) and `make_fcc_loops.py` (FCC) write such inputs.
 
 ## Loop centre and cut plane
 
-The loop surface must lie halfway between two dense atomic planes of its (hkl) = n family.
-The code moves the requested centre along n onto the nearest such mid-plane, without changing the
-in-plane position. It prints the shift and the plane spacing d:
-
-- BCC: d = a0/|n| if h + k + l is even, d = a0/(2|n|) if h + k + l is odd;
-- FCC: d = a0/|n| if h, k, l are all odd, d = a0/(2|n|) otherwise.
-
-This gives, in BCC, d = 2.335 Å for {110}, 1.348 Å for {112} and 0.883 Å for {123} (a0 = 3.3024 Å),
-and in FCC d = 2.087 Å for {111}, 1.278 Å for {110} and 1.808 Å for {100} (a0 = 3.615 Å).
-A centre exactly on an atomic plane goes to the mid-plane on the +n side.
+The loop surface must lie halfway between two dense atomic planes of its (hkl) = n family. DISCO
+moves the requested centre along n onto the nearest such mid-plane, without changing its in-plane
+position, and prints the shift and the plane spacing d (rule and values in
+[Theory](theory.md#cut-placement)). A centre exactly on an atomic plane goes to the mid-plane on the
++n side.
 
 ## Example: one circular and one rounded-rectangle loop
 
@@ -340,16 +309,13 @@ dislocations:
     n: [1, 0, 1]
 ```
 
-More templates are in `Examples/` (`cubic_base.yaml`, `orthorhombic_base.yaml`,
-`quad_junc.yaml`, `quad_anni.yaml`, `quadrupole_circle.yaml`, `rectangular.yaml`).
+More templates are in `Examples/`: BCC (`cubic_base.yaml`, `orthorhombic_base.yaml`,
+`quad_junc.yaml`, `quad_anni.yaml`, `quadrupole_circle.yaml`, `rectangular.yaml`), FCC
+(`fcc_loops.yaml`, `fcc_faulted_loops.yaml`, `fcc_oriented_loops.yaml`, `fcc_twin_lamella.yaml`) and
+polycrystals (`polycrystal_cu.yaml`, `polycrystal_cu_loops.yaml`, `polycrystal_cu_twins.yaml`).
 The [generators](generators.md) write such files for you.
 
 ## Units
 
-| Quantity | Unit |
-|---|---|
-| Lattice parameter `a0` | Å |
-| Atom and loopon positions, all input lengths (including `Segment_tolerance`) | Å |
-| Burgers vector b | Å |
-| Loop-plane normal n | dimensionless (normalised internally) |
-| Loopon area dS | Å² |
+Every length is in Å, including `Segment_tolerance` and `Loopon_size`; n is dimensionless and
+normalised internally ([Conventions](conventions.md#units)).

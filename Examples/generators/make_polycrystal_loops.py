@@ -40,7 +40,6 @@ Usage:
 """
 import argparse
 import itertools
-import json
 import math
 import os
 import sys
@@ -49,19 +48,13 @@ import numpy as np
 
 import exec_input as E
 
-DEFAULTS = {"FCC": dict(element="Cu", a0=3.615, kinds="glide:4,frank:3,prismatic:2,shockley:1"),
-            "BCC": dict(element="Ta", a0=3.3024, kinds="glide:3,prismatic:2")}
+DEFAULTS = {"FCC": dict(element="Cu", a0=E.A0_CU, kinds="glide:4,frank:3,prismatic:2,shockley:1"),
+            "BCC": dict(element="Ta", a0=E.A0_TA, kinds="glide:3,prismatic:2")}
+FAMILY = {("FCC", "glide"): "1/2<110>", ("FCC", "prismatic"): "1/2<110>", ("FCC", "frank"): "1/3<111>",
+          ("FCC", "shockley"): "1/6<112>", ("BCC", "glide"): "1/2<111>", ("BCC", "prismatic"): "1/2<111>"}
 KINDS = {"FCC": ("glide", "shockley", "frank", "prismatic"), "BCC": ("glide", "prismatic")}
 
-D110 = [np.array(v) for v in sorted(set(itertools.permutations((1, 1, 0))) | set(itertools.permutations((1, -1, 0))))
-        if next(x for x in v if x != 0) > 0]
-D111 = [np.array(v) for v in itertools.product((1, -1), repeat=3) if v[0] == 1]
-D112 = [np.array(v) for v in sorted(set(itertools.permutations((1, 1, 2))) | set(itertools.permutations((1, 1, -2)))
-                                    | set(itertools.permutations((1, -1, 2))) | set(itertools.permutations((-1, 1, 2))))]
-
-
-def reduced(v):
-    return np.array(E.reduce_miller([int(round(x)) for x in v]))
+SCRIPT = "make_polycrystal_loops.py"
 
 
 # ---------------------------------------------------------------------------- rotations
@@ -113,65 +106,36 @@ def draw_loop(lat, kind, typ, size, rng):
     """Crystal-frame loop: shape dict + m, n (b = a0/2 m)."""
     sgn = rng.choice((1, -1))
     if lat == "FCC":
-        n = D111[rng.integers(4)] * sgn
+        n = E.D111[rng.integers(4)] * sgn
         if kind == "glide":
-            m = [v for v in D110 if v @ n == 0][rng.integers(3)] * rng.choice((1, -1))
+            m = [v for v in E.D110 if v @ n == 0][rng.integers(3)] * rng.choice((1, -1))
             return dict(shape="circular", radius=size), m.astype(float), n
         if kind == "shockley":
-            cands = [v / 3. for v in D112 if v @ n == 0]
+            cands = [v / 3. for v in E.D112 if v @ n == 0]
             cands = [c for c in cands + [-c for c in cands] if shockley_stable(c, n)]
             return dict(shape="circular", radius=size), cands[rng.integers(len(cands))], n
         if kind == "frank":                      # default vertex axis: <110> vertices and sides
             m = (-2. / 3. if typ == "interstitial" else 2. / 3.) * n
             return dict(shape="hexagonal", circumradius=size), m, n
-        b = D110[rng.integers(6)] * sgn          # prismatic rhombus: reach = side sqrt(2/3)
-        p1, p2 = [p for p in D111 if p @ b == 0]
-        d1, d2 = reduced(np.cross(b, p1)), reduced(np.cross(b, p2))
-        if d1 @ d2 < 0:
-            d2 = -d2
-        side = size / math.sqrt(2. / 3.)
+        b = E.D110[rng.integers(6)] * sgn          # prismatic rhombus: reach = side sqrt(2/3)
         m = (-1. if typ == "interstitial" else 1.) * b
-        return dict(shape="parallelogram", half_1=side / 2, half_2=side / 2,
-                    dir_1=[int(x) for x in d1], dir_2=[int(x) for x in d2]), m, b
+        return E.rhombus_110(b, size / math.sqrt(2. / 3.)), m, b
     # BCC
     if kind == "glide":
-        m = D111[rng.integers(4)] * sgn
-        n = [v for v in D110 if v @ m == 0][rng.integers(3)]
+        m = E.D111[rng.integers(4)] * sgn
+        n = [v for v in E.D110 if v @ m == 0][rng.integers(3)]
         return dict(shape="circular", radius=size), m.astype(float), n
-    b = D111[rng.integers(4)] * sgn              # prismatic hexagon, <112> vertices -> <112> sides
-    vdir = next(v for v in D112 if v @ b == 0)
+    b = E.D111[rng.integers(4)] * sgn              # prismatic hexagon, <112> vertices -> <112> sides
     m = (-1. if typ == "interstitial" else 1.) * b
-    return dict(shape="hexagonal", circumradius=size, vertex_dir=[int(x) for x in vdir]), m, b
-
-
-def perimeter(shape):
-    if shape["shape"] == "circular":
-        return 2 * math.pi * shape["radius"]
-    if shape["shape"] == "hexagonal":
-        return 6 * shape["circumradius"]
-    return 4 * 2 * shape["half_1"]
-
-
-def reach(shape):
-    if shape["shape"] == "circular":
-        return shape["radius"]
-    if shape["shape"] == "hexagonal":
-        return shape["circumradius"]
-    return 2 * shape["half_1"] * math.sqrt(2. / 3.)
-
-
-def min_image(r, box):
-    return r - box * np.round(r / box)
+    return dict(shape="hexagonal", circumradius=size, vertex_dir=E.vertex_112(b)), m, b
 
 
 # ---------------------------------------------------------------------------- main
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("-o", "--output", default="polycrystal_loops.yaml")
     p.add_argument("--lattice", default="FCC", choices=["FCC", "BCC"])
-    p.add_argument("--element", default=None)
-    p.add_argument("--mass", type=float, default=None)
-    p.add_argument("--a0", type=float, default=None)
+    p.add_argument("--element", default=None, help="species name (default Cu for FCC, Ta for BCC)")
+    p.add_argument("--mass", type=float, default=None, help="Dalton (default: DISCO's table for --element)")
     p.add_argument("--box", type=float, nargs="+", default=[150.], help="Lx [Ly Lz] (A)")
     p.add_argument("--grains", type=int, default=8)
     p.add_argument("--density", type=float, default=1e16, help="nominal line length / volume (m^-2)")
@@ -181,13 +145,13 @@ def main():
     p.add_argument("--size-sigma", type=float, default=0.3, help="log-sd of the size (0: all equal)")
     p.add_argument("--type", default="mixed", choices=["interstitial", "vacancy", "mixed"])
     p.add_argument("--gap", type=float, default=10.0, help="minimum distance between loops (A)")
-    p.add_argument("--gb-min-distance", type=float, default=None)
+    p.add_argument("--gb-min-distance", type=float, default=None,
+                   help="DISCO GB_min_distance, in NN distances (default: DISCO's)")
     p.add_argument("--twins-per-grain", type=float, default=0., help="mean number of twin lamellae per grain")
     p.add_argument("--twin-thickness", type=float, default=15., help="median lamella thickness (A)")
     p.add_argument("--twin-sigma", type=float, default=0.3, help="log-sd of the lamella thickness")
     p.add_argument("--twin-gap", type=float, default=20., help="extra random gap between lamellae (A, max)")
-    p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--format", default="lammps", choices=["xyz", "lammps", "both", "none"])
+    E.add_common_args(p, None, output="polycrystal_loops.yaml")
     a = p.parse_args()
     rng = np.random.default_rng(a.seed)
     lat = a.lattice
@@ -215,7 +179,7 @@ def main():
     seeds = np.array([g["center"] for g in grains])
 
     # twin lamellae: parallel stacks, one per grain (DISCO snaps the planes and thicknesses)
-    planes = D111 if lat == "FCC" else D112          # twin planes, one per +- pair
+    planes = E.D111 if lat == "FCC" else E.D112          # twin planes, one per +- pair
     dplane = a0 / math.sqrt(3) if lat == "FCC" else a0 / math.sqrt(6)
     twins = []
     for k, g in enumerate(grains):
@@ -226,15 +190,15 @@ def main():
         nl = g["R"] @ (nc / np.linalg.norm(nc))
         while True:                                   # a random point of grain k
             p0 = (rng.random(3) - 0.5) * box
-            if int(np.argmin(np.linalg.norm(min_image(p0 - seeds, box), axis=1))) == k:
+            if int(np.argmin(np.linalg.norm(E.min_image(p0 - seeds, box), axis=1))) == k:
                 break
         pos = 0.
         for _ in range(nt):
             th = a.twin_thickness * (math.exp(a.twin_sigma * rng.standard_normal()) if a.twin_sigma > 0 else 1.)
             c = p0 + pos * nl
-            if int(np.argmin(np.linalg.norm(min_image(c - seeds, box), axis=1))) != k:
+            if int(np.argmin(np.linalg.norm(E.min_image(c - seeds, box), axis=1))) != k:
                 break                                 # the stack has left the grain: stop it there
-            twins.append(dict(grain=k, n=[int(x) for x in nc], center=list(min_image(c, box)), thickness=th,
+            twins.append(dict(grain=k, n=[int(x) for x in nc], center=list(E.min_image(c, box)), thickness=th,
                               R_twin=g["R"] @ (2 * np.outer(nc, nc) / (nc @ nc) - np.eye(3)),
                               n_lab=nl, start=c))
             pos += th + 4.5 * dplane + 3 * dplane + rng.random() * a.twin_gap   # snap margin + >= 3 planes
@@ -244,23 +208,23 @@ def main():
         for t, tw in enumerate(twins):
             if tw["grain"] != k:
                 continue
-            s = min_image(x - tw["start"], box) @ tw["n_lab"]
+            s = E.min_image(x - tw["start"], box) @ tw["n_lab"]
             if 0 < s < tw["thickness"]:
                 return t + 1
         return 0
 
     def grain_of(x):
-        return int(np.argmin(np.linalg.norm(min_image(x - seeds, box), axis=1)))
+        return int(np.argmin(np.linalg.norm(E.min_image(x - seeds, box), axis=1)))
 
     def cell_margin(x, k):
         """Distance from x to the nearest face of grain k's cell (> 0 inside)."""
-        r = min_image(x - seeds[k], box)
+        r = E.min_image(x - seeds[k], box)
         best = np.inf
         for j in range(len(seeds)):
             for sh in itertools.product((-1, 0, 1), repeat=3):
                 if j == k and sh == (0, 0, 0):
                     continue
-                d = min_image(seeds[j] - seeds[k], box) + np.array(sh) * box
+                d = E.min_image(seeds[j] - seeds[k], box) + np.array(sh) * box
                 best = min(best, (d @ d / 2 - r @ d) / np.linalg.norm(d))
         return best
 
@@ -275,15 +239,15 @@ def main():
         typ = a.type if a.type != "mixed" else ("interstitial", "vacancy")[rng.integers(2)]
         size = a.size * (math.exp(a.size_sigma * rng.standard_normal()) if a.size_sigma > 0 else 1.)
         shape, m, n = draw_loop(lat, kind, typ, size, rng)
-        rr = reach(shape)
+        rr = E.bounding_radius(shape)
         if 2 * rr + a.gap > box.min():
             continue
         c = (rng.random(3) - 0.5) * box
-        if any(np.linalg.norm(min_image(c - c2, box)) < rr + r2 + a.gap for c2, r2 in placed):
+        if any(np.linalg.norm(E.min_image(c - c2, box)) < rr + r2 + a.gap for c2, r2 in placed):
             continue
         k = grain_of(c)
         placed.append((c, rr))
-        total += perimeter(shape)
+        total += E.perimeter(shape)
         loops.append(dict(**shape, center=list(c), m=[float(x) for x in m], n=[int(x) for x in n],
                           grain=k, kind=kind, type=typ if kind in ("frank", "prismatic") else None,
                           may_clip=bool(cell_margin(c, k) < rr)))
@@ -299,33 +263,38 @@ def main():
     general["twins"] = [dict(grain=t["grain"], n=t["n"], center=t["center"], thickness=t["thickness"]) for t in twins]
     counts = {k: sum(l["kind"] == k for l in loops) for k in kinds}
     header = [f"{lat} {element} polycrystal: {len(grains)} grains, {len(twins)} twin lamellae, {len(loops)} loops "
-              f"({', '.join(f'{v} {k}' for k, v in counts.items())}); generated by make_polycrystal_loops.py",
+              f"({', '.join(f'{v} {k}' for k, v in counts.items())}); generated by {SCRIPT}",
               f"nominal density {total / V * 1e20:.3e} m^-2 (before clipping at the GBs); median size {a.size} A",
               "m, n: crystal frame of the loop's grain; Center: box frame (origin at the box centre)"]
     os.makedirs(os.path.dirname(os.path.abspath(a.output)), exist_ok=True)
     E.write_yaml(a.output, general, loops, header)
 
-    side = dict(generator="make_polycrystal_loops.py",
-                command=" ".join([os.path.basename(sys.argv[0])] + sys.argv[1:]),
-                lattice=lat, element=element, a0=a0, box=list(box),
-                nominal_density_m2=total / V * 1e20,
-                grains=[dict(index=i + 1, center=g["center"], euler_deg=g["euler"], R=g["R"].tolist())
-                        for i, g in enumerate(grains)],
-                twins=[dict(index=i + 1, grain=t["grain"] + 1, n=t["n"], center=t["center"],
-                            thickness_requested=t["thickness"], R_twin=t["R_twin"].tolist())
-                       for i, t in enumerate(twins)],
-                loops=[dict(index=i + 1, grain=l["grain"] + 1, kind=l["kind"], type=l["type"], shape=l["shape"],
-                            size=reach(l), perimeter=perimeter(l), center=l["center"], m=l["m"], n=l["n"],
-                            burgers_crystal_a0=[x / 2 for x in l["m"]],
-                            region_approx=region_of(np.array(l["center"]), l["grain"]),
-                            burgers_lab_A=list((twins[region_of(np.array(l["center"]), l["grain"]) - 1]["R_twin"]
-                                                if region_of(np.array(l["center"]), l["grain"]) else
-                                                grains[l["grain"]]["R"]) @ (a0 / 2 * np.array(l["m"]))),
-                            may_clip=l["may_clip"]) for i, l in enumerate(loops)],
-                note="DISCO clips loops at the GBs and skips loops that miss their grain; "
-                     "see Poly_..._loops.txt for the final list and density")
-    with open(os.path.splitext(a.output)[0] + ".json", "w") as f:
-        json.dump(E._jsonable(side), f, indent=1)
+    def burgers_lab(l):
+        """b in the box frame: rotation of the loop's crystal (grain, or twin lamella)."""
+        reg = region_of(np.array(l["center"]), l["grain"])
+        R = twins[reg - 1]["R_twin"] if reg else grains[l["grain"]]["R"]
+        return R @ (a0 / 2 * np.array(l["m"]))
+
+    expected = dict(closed_loops=len(loops), burgers_families=sorted({FAMILY[lat, l["kind"]] for l in loops}),
+                    junctions=0, nominal_density_m2=total / V * 1e20,
+                    note="before clipping: DISCO clips loops at the GBs and twin boundaries and skips loops that "
+                         "miss their grain; Poly_..._loops.txt gives the final list and density")
+    doc = dict(E.sidecar_header(SCRIPT),
+               general=dict(lattice=lat, element=element, a0=a0, box=list(box), output_format=a.format),
+               grains=[dict(index=i + 1, center=g["center"], euler_deg=g["euler"], R=g["R"].tolist())
+                       for i, g in enumerate(grains)],
+               twins=[dict(index=i + 1, grain=t["grain"] + 1, n=t["n"], center=t["center"],
+                           thickness_requested=t["thickness"], R_twin=t["R_twin"].tolist())
+                      for i, t in enumerate(twins)],
+               loops=[dict(index=i + 1, grain=l["grain"] + 1, kind=l["kind"], type=l["type"], shape=l["shape"],
+                           size=E.bounding_radius(l), perimeter=E.perimeter(l), center=l["center"], m=l["m"],
+                           n=l["n"], burgers_crystal_a0=[x / 2 for x in l["m"]],
+                           region_approx=region_of(np.array(l["center"]), l["grain"]),
+                           burgers_lab_A=list(burgers_lab(l)), may_clip=l["may_clip"])
+                      for i, l in enumerate(loops)],
+               expected=expected)
+    E.check_expected(expected)
+    E.dump_json(os.path.splitext(a.output)[0] + ".json", doc)
     print(f"wrote {a.output}: {len(grains)} grains, {len(twins)} twin lamellae, {len(loops)} loops "
           f"({', '.join(f'{v} {k}' for k, v in counts.items())}), nominal density {total / V * 1e20:.2e} m^-2, "
           f"{sum(l['may_clip'] for l in loops)} may be clipped")

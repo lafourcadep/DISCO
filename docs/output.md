@@ -10,15 +10,19 @@
 With a `polycrystal` block the files are `Poly_<G>g_<Lx>x<Ly>x<Lz>.xyz` / `.lmp`, plus a grain table
 `Poly_..._grains.txt`, and the xyz file has a per-atom `grain` column (see [Polycrystals](polycrystal.md)).
 
+With twin lamellae, the xyz file also has a `twin` column and `<name>_twins.txt` lists the lamellae.
+
 Files are written in the current directory. The sample has 2 · Nx · Ny · Nz atoms (BCC) or
-4 · Nx · Ny · Nz atoms (FCC) (with `Orientation`: atoms per cell × box volume / a0³), minus the atoms
+4 · Nx · Ny · Nz atoms (FCC) (with `Orientation`: atoms per cell × box volume / a0³; polycrystal: a
+few % fewer, removed at the GBs), minus the atoms
 removed by vacancy loops and plus those added by interstitial loops (b · n ≠ 0, `Matter: auto`).
 The log prints the count. Added atoms come last in the file.
 
 !!! note "Origin"
     Input coordinates (loop centres, and the generators' JSON sidecars) use the **box centre** as origin.
-    Output positions use a **box corner** as origin: they are shifted by half the box,
-    (Nx, Ny, Nz) · a0 / 2. Add that shift to compare a sidecar position with a DXA result.
+    Output positions use a **box corner** as origin: they are shifted by half of each box length,
+    L/2 (for a cubic box, (Nx, Ny, Nz) · a0 / 2). Add that shift to compare a sidecar position with a
+    DXA result.
 
 ## Extended XYZ
 
@@ -29,7 +33,8 @@ atom is `Element` (default `Ta`).
 ## LAMMPS data file
 
 `atomic` atom style, readable with `read_data`: one atom type, with mass `Mass` (commented with
-`Element`) in the `Masses` section. If the box is triclinic the file has an
+`Element`) in the `Masses` section. Grain and twin ids are not in this file: use the xyz file or the
+`_grains.txt` / `_twins.txt` tables. If the box is triclinic the file has an
 `xy xz yz` tilt line. Atom positions are expressed in the LAMMPS right-handed frame
 obtained by a QR (Gram–Schmidt) decomposition of the box vectors.
 

@@ -1,6 +1,6 @@
 [project]
 site_name = "DISCO"
-site_description = "DISlocation COnfiguration generator: atomistic BCC samples with dislocation loops (Kroupa field, GPU/CPU)"
+site_description = "DISlocation COnfiguration generator: atomistic BCC and FCC samples with dislocation loops (isotropic elastic field, GPU/CPU)"
 site_author = "Paul Lafourcade"
 site_url = "https://lafourcadep.github.io/DISCO/"
 repo_url = "https://github.com/lafourcadep/DISCO"
@@ -10,6 +10,7 @@ nav = [
   { "Home" = "index.md" },
   { "Installation" = "installation.md" },
   { "Usage" = [
+    { "Conventions" = "conventions.md" },
     { "Input file" = "input.md" },
     { "Output files" = "output.md" },
     { "Polycrystals" = "polycrystal.md" },
@@ -20,6 +21,7 @@ nav = [
     { "Quadrupoles" = "quadrupoles.md" },
   ] },
   { "Theory" = "theory.md" },
+  { "Validation" = "validation.md" },
   { "MD workflow" = "md_workflow.md" },
 ]
 extra_javascript = [

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write exec_cuda inputs for ONE glissile dislocation loop (circular, square, rectangular or
+"""Write DISCO inputs for ONE glissile dislocation loop (circular, square, rectangular or
 <111> parallelogram).
 
 The slip system is taken from Parameters/BCC.txt (the file DANCE reads), so --system N is
@@ -10,9 +10,9 @@ Rectangles have their sides along m (screw character, half-length Half_m) and al
 p = m x n (edge character, half-length Half_p); --corner-radius rounds the corners.
 A parallelogram (MD-like low-temperature BCC shape, {110} planes only) has two screw sides
 along b (half-length Half_1 = --half-screw) and two mixed sides along the other <111> of the
-plane, at 70.5 deg to b (Half_2 = --half-mixed); exec_cuda uses an oblique loopon grid.
+plane, at 70.5 deg to b (Half_2 = --half-mixed); DISCO uses an oblique loopon grid.
 A JSON sidecar (same name, .json) records the ground truth: Burgers type and slip-system
-index expected from DANCE, the loop centre after exec_cuda's mid-plane snap, the loopon count.
+index expected from DANCE, the loop centre after DISCO's mid-plane snap, the loopon count.
 
 Usage:
   python3 make_single_loop.py --system 1                                  # circular, R = 8 a0
@@ -58,14 +58,14 @@ def build_loop(a, m, n, unit):
     else:
         loop.update(half_m=a.half_m * unit, half_p=a.half_p * unit, corner_radius=a.corner_radius * unit)
     if loop["shape"] == "rectangular" and loop["corner_radius"] > min(loop["half_m"], loop["half_p"]):
-        sys.exit("--corner-radius larger than the smallest half-side (exec_cuda would clamp it)")
+        sys.exit("--corner-radius larger than the smallest half-side (DISCO would clamp it)")
     return loop
 
 
 def expected_content(loop):
     """What DXA + DANCE should find: one closed 1/2<111> loop; nominal screw/edge lengths
     for rectangles (straight parts of the sides, corners excluded)."""
-    exp = dict(closed_loops=1, burgers_family="1/2<111>", junctions=0)
+    exp = dict(closed_loops=1, burgers_families=["1/2<111>"], junctions=0)
     if loop["shape"] == "rectangular":
         rc = loop["corner_radius"]
         exp.update(screw_length_nominal=4 * (loop["half_m"] - rc), edge_length_nominal=4 * (loop["half_p"] - rc))
@@ -94,15 +94,12 @@ def main():
     p.add_argument("--half-mixed", type=float,
                    help="parallelogram: half-length along the other <111>, 70.5 deg mixed sides (default 8 a0)")
     p.add_argument("--center", type=float, nargs=3, default=[0., 0., 0.],
-                   help="loop centre, origin at box centre (moved onto a mid-plane by exec_cuda)")
+                   help="loop centre, origin at box centre (moved onto a mid-plane by DISCO)")
     p.add_argument("--loopon-size", type=float, help="loopon grid step (default 0.4 a0 = 1.32096 A)")
     p.add_argument("--cells", type=int, help="Nx = Ny = Nz; default: smallest even cube with a 12 a0 margin "
                    "(the same for every file of one --family run)")
-    p.add_argument("--a0", type=float, default=E.A0)
-    p.add_argument("--format", default="xyz", choices=["xyz", "lammps", "both", "none"])
     p.add_argument("--bcc", default=E.DEFAULT_BCC, help="BCC.txt used for the slip systems and ground truth")
-    p.add_argument("-o", "--output", help="output .yaml (single system only)")
-    p.add_argument("--outdir", default=".", help="output folder (default name <shape>_f<family>_sys<NN>.yaml)")
+    E.add_common_args(p, E.A0_TA, outdir=True, seed=False)   # -o: one system; default <shape>_f<family>_sys<NN>.yaml
     a = p.parse_args()
 
     unit = a.a0 if a.units == "a0" else 1.0

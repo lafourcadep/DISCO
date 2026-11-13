@@ -16,11 +16,12 @@ dislocation lines.
 
 Edit the `read_data` path, the deformation and the thermostat to suit your study.
 
-!!! warning "Samples with prismatic loops"
+!!! warning "Samples with prismatic loops, polycrystals and twins"
     Interstitial and vacancy loops change the number of atoms but not the box, so the sample starts
     under pressure (the log prints the expected volume change, ± A |b · n̂|). Relax the box first,
     with `fix box/relax` and `minimize`, or a short NPT run, before the constant-volume run of the
-    template.
+    template. Polycrystals and BCC twin boundaries are built unrelaxed: minimise the energy (and
+    anneal if needed) before any MD or dislocation analysis.
 
 !!! info "Potential file"
     The EAM potential is not distributed with DISCO. Download `Ta1_Ravelo_2013.eam.alloy`
@@ -30,8 +31,9 @@ Edit the `read_data` path, the deformation and the thermostat to suit your study
 
 ## Dislocation extraction with OVITO
 
-`Code/analysis_dxa.py` runs OVITO's Dislocation Analysis (DXA, BCC) on every `dump.*.dump` file in
-the current directory. It prints the dislocation density (total line length / cell volume), then
+`Code/analysis_dxa.py` runs OVITO's Dislocation Analysis (DXA) on every `dump.*.dump` file in
+the current directory. It is set for BCC; for FCC samples change `input_crystal_structure` to
+`DislocationAnalysisModifier.Lattice.FCC`. It prints the dislocation density (total line length / cell volume), then
 writes the lines in two formats for every frame:
 
 - `dislocations.*.ca`: the OVITO crystal-analysis format;

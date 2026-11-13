@@ -1,14 +1,19 @@
-"""Shared helpers for the exec_cuda input generators in this folder.
+"""Shared helpers for the DISCO input generators in this folder (no command line).
 
-- BCC slip systems read from Parameters/BCC.txt, in DANCE's own order (index 1..48),
-  so the slip-system index written in the ground-truth sidecars is the one DANCE reports.
-- Python copies of the exec_cuda geometry rules (loop.cpp, lattice.hpp): mid-plane snap of
-  the loop centre (BCC or FCC planes), in-plane axes m, p = m x n, and the loopon grid (to
-  predict loopon counts).
-- Writers for the YAML input (exact key set accepted by input.cpp) and the JSON sidecar.
+- Crystallography: BCC slip systems read from Parameters/BCC.txt, in DANCE's own order
+  (index 1..48), so the slip-system index written in the ground-truth sidecars is the one
+  DANCE reports; direction sets <110>, <111>, <112>; periodic minimum image.
+- Python copies of DISCO's geometry rules (Code/loop.cpp, Code/lattice.hpp): mid-plane snap
+  of the loop centre (BCC or FCC planes), in-plane axes m, p = m x n, regular polygons, the
+  loopon grid (to predict loopon counts), contour area, perimeter and bounding radius.
+- Command-line options shared by every generator (add_common_args).
+- Writers for the YAML input (exact key set accepted by Code/input.cpp) and the JSON
+  ground-truth sidecar (schema 1, see docs/generators.md).
 
-Every length is in Angstrom, like in the exec_cuda input.
+Conventions: b = a0/2 m; every length in Angstrom; coordinates with the origin at the box
+centre, as in the DISCO input.
 """
+import itertools
 import json
 import math
 from fractions import Fraction
@@ -20,7 +25,99 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_BCC = os.path.normpath(os.path.join(HERE, "..", "..", "Parameters", "BCC.txt"))
-A0 = 3.3024
+A0_TA = 3.3024                      # BCC Ta (Ravelo EAM), default of the BCC generators
+A0_CU = 3.615                       # FCC Cu (Mishin EAM), default of the FCC generators
+A0 = A0_TA
+FORMATS = ("xyz", "lammps", "both", "none")
+SIDECAR_SCHEMA = 1
+
+
+# =============================================================================
+# Command line
+# =============================================================================
+def add_common_args(p, a0, output=None, outdir=False, seed=True):
+    """Options shared by every generator, with one meaning and one default everywhere."""
+    p.add_argument("--a0", type=float, default=a0,
+                   help="lattice parameter (A)" + (f" (default {a0})" if a0 is not None else ""))
+    p.add_argument("--format", default="lammps", choices=FORMATS,
+                   help="DISCO Output_format: the files DISCO writes (default lammps)")
+    if seed:
+        p.add_argument("--seed", type=int, default=0, help="random seed (default 0: reproducible)")
+    p.add_argument("-o", "--output", default=output,
+                   help="output .yaml; the sidecar .json is written next to it"
+                        + (f" (default {output})" if output else ""))
+    if outdir:
+        p.add_argument("--outdir", default=".", help="output folder for default file names")
+
+
+def parse_cells(cells, what="--cells"):
+    """--cells N or NX NY NZ -> (NX, NY, NZ), or None."""
+    if cells is None:
+        return None
+    if len(cells) not in (1, 3) or min(cells) < 1:
+        sys.exit(f"{what}: N, or NX NY NZ, positive integers")
+    return tuple(cells) * 3 if len(cells) == 1 else tuple(cells)
+
+
+# =============================================================================
+# Directions and periodic geometry
+# =============================================================================
+def _one_sign(vectors):
+    """Sorted unique integer vectors, the sign that makes the first non-zero component > 0."""
+    return [np.array(v) for v in sorted(set(vectors)) if next(x for x in v if x != 0) > 0]
+
+
+def _perms(*vs):
+    return set().union(*(itertools.permutations(v) for v in vs))
+
+
+D110 = _one_sign(_perms((1, 1, 0), (1, -1, 0)))                       # 6 <110>
+D111 = [np.array(v) for v in itertools.product((1, -1), repeat=3) if v[0] == 1]   # 4 <111>
+D112 = [np.array(v) for v in sorted(_perms((1, 1, 2), (1, 1, -2), (1, -1, 2), (-1, 1, 2)))]  # 12 <112>
+
+
+def reduced(v):
+    """Integer vector divided by the gcd of its components."""
+    return np.array(reduce_miller([int(round(x)) for x in v]))
+
+
+def min_image(r, box):
+    """Periodic minimum image of the separation r in an orthorhombic box."""
+    return r - box * np.round(r / box)
+
+
+def planes_110_containing(b):
+    """The three {110} normals n (one sign each) with n.b = 0, for a <111> b."""
+    found = []          # iteration order kept from the original scripts (reproducible samples)
+    for n in set(itertools.permutations((1, 1, 0))) | set(itertools.permutations((1, -1, 0))):
+        n = np.array(n)
+        if n @ b == 0 and not any(np.array_equal(n, -f) or np.array_equal(n, f) for f in found):
+            found.append(n)
+    return found
+
+
+def glide_planes_111(b):
+    """The two {111} normals (one sign each) containing the <110> direction b."""
+    return [p for p in D111 if p @ b == 0]
+
+
+def vertex_112(n):
+    """First <112> of D112 lying in the {111} plane n. A regular hexagon's sides are parallel
+    to its vertex directions, so a <112> Vertex_dir puts the sides along <112>: on the {110}
+    glide prism of b // n (BCC 1/2<111> prismatic loop)."""
+    return [int(x) for x in next(v for v in D112 if v @ n == 0)]
+
+
+def rhombus_110(b, side):
+    """FCC perfect prismatic loop on (b), b = <110>, bounded by the two {111} glide planes of b:
+    a DISCO parallelogram with Dir_1, Dir_2 = b x p_i (<112>, 70.5 deg apart) and
+    Half_1 = Half_2 = side / 2."""
+    p1, p2 = glide_planes_111(b)
+    d1, d2 = reduced(np.cross(b, p1)), reduced(np.cross(b, p2))
+    if np.dot(d1, d2) < 0:                       # acute angle between Dir_1 and Dir_2
+        d2 = -d2
+    return dict(shape="parallelogram", half_1=side / 2, half_2=side / 2,
+                dir_1=[int(x) for x in d1], dir_2=[int(x) for x in d2])
 
 
 # =============================================================================
@@ -104,7 +201,7 @@ def junction_type(bcc, m):
 
 
 # =============================================================================
-# exec_cuda geometry (loop.cpp)
+# DISCO geometry (Code/loop.cpp, Code/lattice.hpp)
 # =============================================================================
 def reduce_miller(n):
     n = [int(x) for x in n]
@@ -144,7 +241,7 @@ def mid_plane_offset(s, n, a0, cells, lattice="BCC"):
 
 
 def in_plane_axes(m, n, side=None):
-    """exec_cuda's in-plane loopon-grid axes (loop.cpp): u-hat, the Half_m axis, and
+    """DISCO's in-plane loopon-grid axes (loop.cpp): u-hat, the Half_m axis, and
     v-hat = u-hat x n-hat, the Half_p axis. Without `side` (rectangle Side, polygon
     Vertex_dir), u is m projected on the plane (m itself for a glide loop) or, for
     m // n, n x e_k with e_k the Cartesian axis of smallest |n_k| (defaultAxes)."""
@@ -228,7 +325,7 @@ def inside_2d(loop, u, v, eps=1e-9, poly=None):
 
 
 def count_loopons(loop, da):
-    """Number of loopons exec_cuda will put in this loop (generateLoopons)."""
+    """Number of loopons DISCO will put in this loop (generateLoopons)."""
     ext_m, ext_p = (loop["radius"],) * 2 if loop["shape"] == "circular" else _halves(loop)
     km, kp = math.ceil(ext_m / da) + 1, math.ceil(ext_p / da) + 1
     poly = polygon_2d(loop) if loop["shape"] in ("hexagonal", "polygon") else None
@@ -248,6 +345,58 @@ def loop_half_extent(loop):
         return np.max(np.abs(P[:, :1] * mh + P[:, 1:] * ph), axis=0)
     rc = min(loop["corner_radius"], loop["half_m"], loop["half_p"])
     return (loop["half_m"] - rc) * np.abs(mh) + (loop["half_p"] - rc) * np.abs(ph) + rc * np.hypot(mh, ph)
+
+
+def _parallelogram_sin(loop):
+    d1, d2 = _unit(loop["dir_1"]), _unit(loop["dir_2"])
+    return float(np.linalg.norm(np.cross(d1, d2))), d1, d2
+
+
+def contour_area(loop):
+    """Exact area of the loop contour (A^2), corners rounded as in loop.cpp."""
+    sh = loop["shape"]
+    if sh == "circular":
+        return math.pi * loop["radius"] ** 2
+    if sh == "parallelogram":
+        return 4 * loop["half_1"] * loop["half_2"] * _parallelogram_sin(loop)[0]
+    if sh in ("hexagonal", "polygon"):
+        P, _, rc, _ = polygon_2d(loop)
+        ns = len(P)
+        sharp = 0.5 * ns * loop["circumradius"] ** 2 * math.sin(2 * math.pi / ns)
+        return sharp - rc * rc * (ns * math.tan(math.pi / ns) - math.pi)
+    rc = min(loop["corner_radius"], loop["half_m"], loop["half_p"])
+    return 4 * loop["half_m"] * loop["half_p"] - (4 - math.pi) * rc * rc
+
+
+def perimeter(loop):
+    """Length of the loop contour (A): the nominal dislocation line length."""
+    sh = loop["shape"]
+    if sh == "circular":
+        return 2 * math.pi * loop["radius"]
+    if sh == "parallelogram":
+        return 4 * (loop["half_1"] + loop["half_2"])
+    if sh in ("hexagonal", "polygon"):
+        P, _, rc, _ = polygon_2d(loop)
+        ns = len(P)
+        sharp = 2 * ns * loop["circumradius"] * math.sin(math.pi / ns)
+        return sharp - 2 * ns * rc * math.tan(math.pi / ns) + 2 * math.pi * rc
+    rc = min(loop["corner_radius"], loop["half_m"], loop["half_p"])
+    return 4 * (loop["half_m"] + loop["half_p"]) - 8 * rc + 2 * math.pi * rc
+
+
+def bounding_radius(loop):
+    """Radius of the smallest sphere around the loop centre holding the contour (A)."""
+    sh = loop["shape"]
+    if sh == "circular":
+        return loop["radius"]
+    if sh == "parallelogram":
+        _, d1, d2 = _parallelogram_sin(loop)
+        h1, h2 = loop["half_1"] * d1, loop["half_2"] * d2
+        return float(max(np.linalg.norm(h1 + h2), np.linalg.norm(h1 - h2)))
+    if sh in ("hexagonal", "polygon"):
+        return loop["circumradius"]
+    rc = min(loop["corner_radius"], loop["half_m"], loop["half_p"])
+    return math.hypot(loop["half_m"] - rc, loop["half_p"] - rc) + rc
 
 
 def auto_cells(loops, a0=A0, margin=12 * A0):
@@ -342,7 +491,7 @@ def _vec(v):
 
 
 def write_yaml(path, general, loops, header_lines=()):
-    """exec_cuda input with the exact key set accepted by input.cpp."""
+    """DISCO input with the exact key set accepted by input.cpp."""
     lines = [f"# {h}" if h else "#" for h in header_lines]
     if lines:
         lines.append("")
@@ -449,20 +598,37 @@ def loop_record(bcc, loop, general):
     return rec
 
 
-def write_sidecar(path, bcc, general, loops, expected, extra=None, script=None):
-    """JSON ground truth next to the YAML: generator command line, general block,
-    per-loop records and the expected DXA/DANCE content of the sample."""
-    doc = dict(generator=script or os.path.basename(sys.argv[0]),
-               command=" ".join([os.path.basename(sys.argv[0])] + sys.argv[1:]),
-               general=general, loops=[loop_record(bcc, l, general) for l in loops], expected=expected)
-    if extra:
-        doc.update(extra)
+def dump_json(path, doc):
+    """JSON with numpy values made plain and short numeric vectors on one line."""
     text = json.dumps(_jsonable(doc), indent=2)
-    # short numeric vectors on one line
     text = re.sub(r"\[\s*(-?[\d.e+-]+(?:,\s*-?[\d.e+-]+){1,3})\s*\]",
                   lambda mt: "[" + ", ".join(x.strip() for x in mt.group(1).split(",")) + "]", text)
     with open(path, "w") as f:
         f.write(text + "\n")
+
+
+def sidecar_header(script=None):
+    """First keys of every sidecar: schema version, generator and its exact command line."""
+    return dict(schema=SIDECAR_SCHEMA, generator=script or os.path.basename(sys.argv[0]),
+                command=" ".join([os.path.basename(sys.argv[0])] + sys.argv[1:]))
+
+
+def check_expected(expected):
+    """Every sidecar's `expected` block has these keys (schema 1); a generator adds its own."""
+    missing = [k for k in ("closed_loops", "burgers_families", "junctions") if k not in expected]
+    if missing:
+        raise ValueError(f"sidecar expected block lacks {missing}")
+
+
+def write_sidecar(path, bcc, general, loops, expected, extra=None, script=None):
+    """JSON ground truth next to the YAML: schema, generator command line, general block,
+    per-loop records and the expected DXA/DANCE content of the sample."""
+    check_expected(expected)
+    doc = dict(sidecar_header(script), general=general,
+               loops=[loop_record(bcc, l, general) for l in loops], expected=expected)
+    if extra:
+        doc.update(extra)
+    dump_json(path, doc)
 
 
 def general_block(a0, cells, loopon_size, fmt, method="line", lattice=None, element=None, mass=None):
